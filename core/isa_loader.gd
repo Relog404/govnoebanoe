@@ -288,7 +288,7 @@ func disassemble(bytes: Array, isa: Dictionary) -> Dictionary:
 		var args := PackedStringArray()
 		for i in ins.operands.size():
 			args.append(("R%d" if ins.d.args[i] == "r" else "0x%02X") % int(ins.operands[i]))
-		lines.append((String(ins.d.name) + " " + ", ".join(args)).strip_edges())
+		lines.append((str(ins.d.name) + " " + ", ".join(args)).strip_edges())
 		pc = ins.end
 	return {"ok": true, "source": "\n".join(lines)}
 

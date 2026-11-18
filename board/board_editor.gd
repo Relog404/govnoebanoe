@@ -210,6 +210,15 @@ func _unhandled_input(event: InputEvent) -> void:
 		return
 	# Вращение переносимого компонента/дорожки — только пока несём.
 	if not carry.is_empty() and (event.button_index == MOUSE_BUTTON_LEFT or event.button_index == MOUSE_BUTTON_RIGHT):
+		if carry.get("mode") == "scene":
+			# Деталь «в руке» из палитры: ЛКМ — поставить на клетку, ПКМ — отмена.
+			if event.button_index == MOUSE_BUTTON_LEFT:
+				_on_motion(event.position)
+				_commit_place()
+			else:
+				cancel_carry()
+			get_viewport().set_input_as_handled()
+			return
 		var target := build_target(event.position)
 		ToolManager.apply(event, target)
 		get_viewport().set_input_as_handled()
@@ -293,6 +302,15 @@ func place_scene_immediately(scene_path: String, mouse: Vector2) -> void:
 	_on_motion(mouse)
 	_commit_place()
 
+# Единый генератор id: P<N>_RESISTOR и т.п. — без PRIMITIVE_/TRACE_ и подчёркиваний.
+func _auto_component_id(scene_path: String) -> String:
+	_counter += 1
+	var base := scene_path.get_file().get_basename().to_upper()
+	for junk in ["PRIMITIVE_", "TRACE_"]:
+		base = base.replace(junk, "")
+	base = base.replace("_", "")
+	return "P%d_%s" % [_counter, base]
+
 func start_carry_scene(scene_path: String) -> void:
 	cancel_carry()
 	if not ResourceLoader.exists(scene_path):
@@ -300,9 +318,7 @@ func start_carry_scene(scene_path: String) -> void:
 		return
 	var scene: PackedScene = load(scene_path)
 	var node: Node3D = scene.instantiate()
-	_counter += 1
-	var base := scene_path.get_file().get_basename().to_upper().replace("TRACE_", "T")
-	var component_id := "P%d_%s" % [_counter, base] if not base.begins_with("T") else "%s%d" % [base, _counter]
+	var component_id := _auto_component_id(scene_path)
 	# Сначала узнаём габариты; узел до размещения в дерево не добавляем.
 	var size: Vector3 = node.size_mm() if node.has_method("size_mm") else Vector3.ONE
 	var span := Vector2i(ceili(size.x / board.grid_mm), ceili(size.z / board.grid_mm))
@@ -366,18 +382,28 @@ func _find_node(id: String) -> Node3D:
 	return null
 
 func _commit_place() -> void:
-	if carry.is_empty() or hover_cell.x < 0:
+	if carry.is_empty():
 		cancel_carry()
+		return
+	if hover_cell.x < 0:
+		# Деталь остаётся в руке — просто некуда ставить.
+		notify.emit("Курсор вне платы — деталь осталась в руке")
 		return
 	if carry.get("mode") == "move":
 		_commit_move()
+		return
+	var span := _carry_span()
+	var rot0 := int(carry.get("rot", 0))
+	if not board.can_place([hover_cell.x, hover_cell.y], [span.x, span.y], rot0, str(carry.get("id", ""))):
+		# Деталь не теряем: клетка занята — остаётся в руке.
+		notify.emit("Клетка занята — туда не поставить")
 		return
 	var scene_path := str(carry.get("scene", ""))
 	var scene: PackedScene = load(scene_path)
 	var node: Node3D = scene.instantiate()
 	node.component_id = str(carry.id)
-	var rot := int(carry.get("rot", 0))
-	node.position = cell_center_m(hover_cell, _carry_span(), rot)
+	var rot := rot0
+	node.position = cell_center_m(hover_cell, span, rot)
 	node.rotation.y = -rot * PI * 0.5
 	var is_trace := scene_path.get_file().begins_with("trace_")
 	(traces_root if is_trace else parts_root).add_child(node)
@@ -391,9 +417,7 @@ func _commit_place() -> void:
 		board.components.append(entry)
 	if carry.get("mode") == "scene":
 		# Серийное размещение: тот же тип детали до Esc/ПКМ.
-		_counter += 1
-		var base2 := scene_path.get_file().get_basename().to_upper().replace("PRIMITIVE_", "").replace("TRACE_", "").replace("_", "")
-		carry.id = "P%d_%s" % [_counter, base2]
+		carry.id = _auto_component_id(scene_path)
 	else:
 		carry = {}
 		ToolManager.held = ""
