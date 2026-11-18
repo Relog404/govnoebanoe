@@ -3,7 +3,8 @@ extends Node
 # Каждому чипу можно передать свою таблицу. JSON описывает байты, операнды
 # и последовательность микроопераций; никакого eval и загрузки скриптов.
 const OPS := {"mov":"rv", "add":"rv", "sub":"rv", "and":"rv", "or":"rv", "xor":"rv",
-	"ld":"rv", "st":"vv", "jmp":"v", "jz":"vv", "in":"rv", "out":"vv", "halt":"", "nop":""}
+	"ld":"rv", "st":"vv", "jmp":"v", "jz":"vv", "jnz":"vv", "not":"rv",
+	"in":"rv", "out":"vv", "halt":"", "nop":""}
 
 func _bad(message: String, line: int = 0) -> Dictionary:
 	return {"ok": false, "error": message, "line": line}
@@ -188,6 +189,9 @@ func execute(vm: Dictionary, isa: Dictionary, chip: String) -> bool:
 			"jmp": vm.pc = a
 			"jz":
 				if a == 0: vm.pc = b
+			"jnz":
+				if a != 0: vm.pc = b
+			"not": vm.regs[dst] = (~b) & 255
 			"in": vm.regs[dst] = int(vm.inputs.get(str(b), 0)) & 255
 			"out": vm.outputs[str(a)] = b
 			"halt":

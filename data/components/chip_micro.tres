@@ -1,0 +1,27 @@
+[gd_resource type="Resource" script_class="ComponentDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://components/component_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+display_name = "Чип пользователя «МИКРО», 8 пинов, MINI-8"
+parameters = {
+"pins": 8,
+"label": "МИКРО"
+}
+isa_path = "res://data/isa/mini_isa.json"
+io_map = {
+"0": "P2",
+"1": "P3"
+}
+ports = {
+"P1": "in",
+"P2": "out",
+"P3": "out",
+"P4": "in",
+"P5": "in",
+"P6": "in",
+"P7": "in",
+"P8": "optional"
+}
+framebuffer_format = "1-bit"

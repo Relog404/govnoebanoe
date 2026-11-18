@@ -30,8 +30,10 @@ func _ready() -> void:
 		hit.height = 0.65 * MM
 		_pick(p, hit, pos + Vector3.UP * 0.325, 8).set_meta("pin", p)
 	refresh_visual()
-	if not component_id.is_empty() and not SimRegistry.register(self):
-		push_error("Некорректный или занятый id: " + component_id)
+	if not component_id.is_empty() and not ports.is_empty():
+		if not SimRegistry.register(self):
+			push_error("Некорректный или занятый id: " + component_id)
+	# Детали без портов (корпус) — чистый декор, в схему не входят.
 
 func _exit_tree() -> void:
 	if not component_id.is_empty():
@@ -62,7 +64,7 @@ func tick(_at: int) -> void:
 func on_signal(_pin: String, _sample: Dictionary) -> void:
 	pass  # Реестр уже назначит один tick для всей пачки изменений.
 
-func on_event(kind: String, data: Dictionary) -> void:
+func on_event(kind: String, data: Dictionary = {}) -> void:
 	# Датированный внешний стимул; один драйвер на физический порт.
 	if kind == "drive" and ports.has(data.get("pin")):
 		SimBus.drive(endpoint(data.pin), int(data.get("sig", SimBus.Sig.Z)),

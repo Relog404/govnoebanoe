@@ -1,0 +1,15 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://ui/isa_editor.gd" id="1"]
+
+[node name="IsaEditor" type="PanelContainer"]
+script = ExtResource("1")
+offset_right = 520.0
+offset_bottom = 520.0
+
+[node name="VBox" type="VBoxContainer" parent="."]
+
+[node name="Title" type="Label" parent="VBox"]
+text = "Редактор ISA"
+theme_override_font_sizes/font_size = 15
+theme_override_colors/font_color = Color(0.62, 1.0, 0.83, 1)

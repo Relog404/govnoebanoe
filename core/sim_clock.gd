@@ -87,6 +87,16 @@ func run(n: int) -> void:
 	for i in maxi(0, n):
 		step()
 
+# Полная остановка и обнуление времени (не путать со снимком/откатом).
+func reset() -> void:
+	_heap.clear()
+	now = 0
+	_serial = 0
+	_credit = 0.0
+	playing = false
+	SimRegistry.wake_all()
+	DebugHooks.timeline_reset.emit(0)
+
 # Снимок — только на границе тактов. Никаких Callable, RID и адресов нод.
 func snapshot() -> Dictionary:
 	if _stepping:

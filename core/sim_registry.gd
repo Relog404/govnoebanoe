@@ -56,6 +56,9 @@ func disconnect_ports(a: String, b: String) -> void:
 func has_part(id: String) -> bool:
 	return _parts.has(id)
 
+func get_part(id: String) -> Node3D:
+	return _parts.get(id)
+
 func has_pin(pin: String) -> bool:
 	return _net.has(pin)
 
@@ -89,6 +92,10 @@ func _rebuild() -> void:
 	for id: String in _parts:
 		wake(id)
 	topology_changed.emit()
+
+func wake_all() -> void:
+	for id: String in _parts:
+		_dirty[id] = true
 
 func wake(id: String) -> void:
 	if _parts.has(id):

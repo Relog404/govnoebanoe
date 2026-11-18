@@ -47,7 +47,10 @@ func forget(id: String, pins: Array) -> void:
 	for pin in pins:
 		_drivers.erase(pin)
 		_pulls.erase(pin)
-	open_branch(id)
+	# Дорожки/кнопки могут регистрировать ветви как «<id>» или «<id>:N».
+	for key: Variant in _branches.keys():
+		if key == id or String(key).begins_with(id + ":"):
+			_branches.erase(key)
 	_dirty = true
 
 func _reading(s: int = Sig.Z, v: Variant = null, r: float = 0.0, fault: String = "") -> Dictionary:

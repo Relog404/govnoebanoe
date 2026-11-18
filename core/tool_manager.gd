@@ -33,6 +33,12 @@ func _unhandled_key_input(e: InputEvent) -> void:
 		select(e.keycode - KEY_1)
 		get_viewport().set_input_as_handled()
 
+func set_zoom(factor: int) -> void:
+	if factor not in [1, 2, 4, 8]:
+		return
+	zoom = factor
+	zoom_changed.emit(zoom, pivot, locked)
+
 func hover(target: Dictionary) -> void:
 	if current == Tool.TESTER:
 		var pin := String(target.get("pin", ""))
@@ -70,8 +76,8 @@ func apply(e: InputEventMouseButton, target: Dictionary) -> void:
 					first_pin = pin
 					gesture.emit("wire_start", target)
 				elif SimRegistry.connect_ports(first_pin, pin):
+					gesture.emit("wire_end", {"from": first_pin, "to": pin, "point": point})
 					first_pin = ""
-					gesture.emit("wire_end", target)
 			Tool.TWEEZERS:
 				if held.is_empty() and not id.is_empty():
 					held = id

@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="ComponentDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://components/component_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+display_name = "Резистор 330 Ом, 0.25 Вт"
+ports = {
+"A": "passive",
+"B": "passive"
+}
+parameters = {
+"ohms": 330,
+"rated_w": 0.25
+}
