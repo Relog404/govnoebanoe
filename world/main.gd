@@ -4,7 +4,8 @@ extends Node3D
 var editor: Node3D
 var _yaw := -0.55
 var _pitch := 0.74
-var _dist := 0.34
+var _base_dist := 0.34   # Долли обычным колесом вне лупы.
+var _focus := Vector3.ZERO # Точка, вокруг которой работает лупа (игнорируется при ×1).
 var _drag := false
 
 const PANEL_NODES := ["IsaEditor", "CodeEditor", "DebuggerPanel"]
@@ -18,6 +19,7 @@ func _ready() -> void:
 	var code: Control = $Studio/CodeEditor
 	code.image_flashed.connect(func(chip_id: String, image: Array) -> void: $Studio/DebuggerPanel.show_image(chip_id, image))
 	_wire_panel_toggles()
+	ToolManager.zoom_changed.connect(_on_zoom_changed)
 	_make_board_plate()
 	_restore_autosave()
 	var autosave := Timer.new()
@@ -114,16 +116,24 @@ func _on_drop(scene_path: String, mouse: Vector2) -> void:
 
 # ---------- Камера ----------
 
+# Лупа: то же колесо, но с якорем на точке под курсором и ступенями ×1/2/4/8.
+func _on_zoom_changed(factor: int, pivot: Vector3, locked: bool) -> void:
+	if factor == 1 and not locked:
+		_focus = Vector3.ZERO
+	elif pivot != Vector3.ZERO:
+		_focus = pivot
+	_update_camera()
+
 func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventMouseButton:
 		if event.button_index == MOUSE_BUTTON_MIDDLE:
 			_drag = event.pressed
 			get_viewport().set_input_as_handled()
 		elif event.button_index == MOUSE_BUTTON_WHEEL_UP and ToolManager.current != ToolManager.Tool.LOUPE:
-			_dist = clampf(_dist * 0.88, 0.16, 0.85)
+			_base_dist = clampf(_base_dist * 0.88, 0.16, 0.85)
 			_update_camera()
 		elif event.button_index == MOUSE_BUTTON_WHEEL_DOWN and ToolManager.current != ToolManager.Tool.LOUPE:
-			_dist = clampf(_dist * 1.14, 0.16, 0.85)
+			_base_dist = clampf(_base_dist * 1.14, 0.16, 0.85)
 			_update_camera()
 	elif event is InputEventMouseMotion and _drag:
 		_yaw -= event.relative.x * 0.005
@@ -132,12 +142,14 @@ func _unhandled_input(event: InputEvent) -> void:
 
 func _update_camera() -> void:
 	var camera: Camera3D = $CameraRig/Camera3D
+	var dist := _base_dist / float(ToolManager.zoom if ToolManager.zoom >= 1 else 1)
+	var focus := _focus if ToolManager.zoom > 1 or ToolManager.locked else Vector3(0, -0.004, 0)
 	var offset := Vector3(
-		_dist * cos(_pitch) * sin(_yaw),
-		_dist * sin(_pitch),
-		_dist * cos(_pitch) * cos(_yaw))
-	camera.global_position = offset
-	camera.look_at(Vector3(0, -0.004, 0), Vector3.UP)
+		dist * cos(_pitch) * sin(_yaw),
+		dist * sin(_pitch),
+		dist * cos(_pitch) * cos(_yaw))
+	camera.global_position = focus + offset
+	camera.look_at(focus, Vector3.UP)
 
 # ---------- Автосохранение ----------
 

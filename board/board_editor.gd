@@ -187,7 +187,15 @@ func _unhandled_input(event: InputEvent) -> void:
 		ToolManager.apply(event, target)
 		get_viewport().set_input_as_handled()
 		return
-	if event.button_index == MOUSE_BUTTON_LEFT or event.button_index == MOUSE_BUTTON_RIGHT or event.button_index in [MOUSE_BUTTON_WHEEL_UP, MOUSE_BUTTON_WHEEL_DOWN]:
+	if event.button_index in [MOUSE_BUTTON_WHEEL_UP, MOUSE_BUTTON_WHEEL_DOWN]:
+		# Лупа или перенос детали — колесо наше; иначе пусть камера мира панорамирует.
+		if carry.is_empty() and ToolManager.current != ToolManager.Tool.LOUPE:
+			return
+		var target := build_target(event.position)
+		ToolManager.apply(event, target)
+		get_viewport().set_input_as_handled()
+		return
+	if event.button_index == MOUSE_BUTTON_LEFT or event.button_index == MOUSE_BUTTON_RIGHT:
 		var target := build_target(event.position)
 		ToolManager.apply(event, target)
 		get_viewport().set_input_as_handled()
