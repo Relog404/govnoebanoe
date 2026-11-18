@@ -17,8 +17,8 @@ func register(part: Node3D) -> bool:
 	if not id.is_valid_identifier() or _parts.has(id) or part.ports.is_empty():
 		return false
 	for pin: String in part.ports:
-		if not pin.is_valid_identifier():
-			return false
+		if not pin.is_valid_identifier() and not pin.is_valid_int():
+			return false  # буквенные («VCC») и числовые («1») имена разрешены
 	_parts[id] = part
 	wake(id)
 	_rebuild()

@@ -1,7 +1,7 @@
 class_name BoardEditor
 extends Node3D
 
-const BoardData = preload("res://components/board_data.gd")
+const BoardDataScript = preload("res://components/board_data.gd")
 
 # Редактор платы: raycast → сетка 10×10 мм → превью → ЛКМ разместить / ПКМ снять.
 # Дорожки — настоящие компоненты (trace_*), участвующие в симуляции как КЗ-ветви.
@@ -9,19 +9,45 @@ signal part_placed(id: String)
 signal part_detached(id: String)
 signal board_saved(path: String)
 signal validated(issues: PackedStringArray)
+signal notify(message: String)
+signal hover_info(text: String)
+signal board_resized(width_mm: float, height_mm: float)
 
 const MM := 0.001
 const CELL_HI := 1
-var board: BoardData = BoardData.new()
+var board: BoardDataScript = BoardDataScript.new()
 var grid_map  # GridMap (вводится в res://board/board_editor.tscn)
 var parts_root: Node3D
 var traces_root: Node3D
 var debris_root: Node3D
 var ghost: MeshInstance3D
+var wires_root: Node3D
 var carry := {}                     # {mode:"move"|"scene", id?, scene?, span, rot, origin_cell?, origin_rot?}
 var hover_cell := Vector2i(-1, -1)
 var _counter := 0
 var _connected := false
+
+const TYPE_MAP := {
+	"transistor": "res://components/primitive_transistor.tscn",
+	"resistor": "res://components/primitive_resistor.tscn",
+	"capacitor": "res://components/primitive_capacitor.tscn",
+	"led": "res://components/primitive_led.tscn",
+	"diode": "res://components/primitive_diode.tscn",
+	"chip_dip8": "res://components/chip_dip.tscn",
+	"chip_dip16": "res://components/chip_dip.tscn",
+	"oled": "res://components/display_oled.tscn",
+	"matrix": "res://components/display_ledmatrix.tscn",
+	"7seg": "res://components/display_7seg.tscn",
+	"button": "res://components/button.tscn",
+	"switch": "res://components/switch.tscn",
+	"slot": "res://components/slot.tscn",
+	"power": "res://components/power_rail.tscn",
+	"trace_straight": "res://components/trace_straight.tscn",
+	"trace_corner": "res://components/trace_corner.tscn",
+	"trace_t": "res://components/trace_t.tscn",
+	"trace_cross": "res://components/trace_cross.tscn",
+	"case": "res://components/case_blank.tscn",
+}
 
 const PART_LIBRARY := {
 	"Транзистор NPN": "res://components/primitive_transistor.tscn",
@@ -41,6 +67,7 @@ const PART_LIBRARY := {
 	"Дорожка T": "res://components/trace_t.tscn",
 	"Дорожка крест": "res://components/trace_cross.tscn",
 	"Корпус-заготовка": "res://components/case_blank.tscn",
+	"Питание (БП 3.3 В)": "res://components/power_rail.tscn",
 }
 
 func _ready() -> void:
@@ -48,6 +75,7 @@ func _ready() -> void:
 	parts_root = $Parts
 	traces_root = $Traces
 	debris_root = $Debris
+	wires_root = $Wires
 	_make_cell_library()
 	_make_ghost()
 	ToolManager.gesture.connect(_on_gesture)
@@ -161,7 +189,8 @@ func build_target(mouse: Vector2) -> Dictionary:
 func _owner_part(node: Node) -> Node3D:
 	var n := node
 	while n:
-		if n is Node3D and not String(n.get("component_id")).is_empty():
+		var cid: String = str(n.get("component_id"))
+		if n is Node3D and not cid.is_empty():
 			return n
 		n = n.get_parent()
 	return null
@@ -180,13 +209,24 @@ func _unhandled_input(event: InputEvent) -> void:
 	if not (event is InputEventMouseButton) or not event.pressed:
 		return
 	# Вращение переносимого компонента/дорожки — только пока несём.
-	if not carry.is_empty() and event.button_index == MOUSE_BUTTON_WHEEL_DOWN and int(carry.get("rot", 0)) == 3:
-		pass  # колесо занято лупой/камерой: вращаем R
 	if not carry.is_empty() and (event.button_index == MOUSE_BUTTON_LEFT or event.button_index == MOUSE_BUTTON_RIGHT):
 		var target := build_target(event.position)
 		ToolManager.apply(event, target)
 		get_viewport().set_input_as_handled()
 		return
+	if ToolManager.current == ToolManager.Tool.CURSOR and event.button_index == MOUSE_BUTTON_LEFT:
+		var target := build_target(event.position)
+		if _try_toggle_button(target):
+			get_viewport().set_input_as_handled()
+			return
+	if ToolManager.current == ToolManager.Tool.CURSOR and event.button_index == MOUSE_BUTTON_RIGHT:
+		var target := build_target(event.position)
+		var pin := str(target.get("pin", ""))
+		if not pin.is_empty():
+			var removed := remove_pin_links(pin)
+			notify.emit("Связей на %s убрано: %d" % [pin, removed])
+			get_viewport().set_input_as_handled()
+			return
 	if event.button_index in [MOUSE_BUTTON_WHEEL_UP, MOUSE_BUTTON_WHEEL_DOWN]:
 		# Лупа или перенос детали — колесо наше; иначе пусть камера мира панорамирует.
 		if carry.is_empty() and ToolManager.current != ToolManager.Tool.LOUPE:
@@ -207,10 +247,25 @@ func _input(event: InputEvent) -> void:
 			carry.rot = (int(carry.get("rot", 0)) + 1) & 3
 			_refresh_ghost()
 			get_viewport().set_input_as_handled()
+		return
+	# Esc — отменить перенос и незавершённую пайку.
+	if event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_ESCAPE:
+		cancel_carry()
+		ToolManager.cancel()
+		get_viewport().set_input_as_handled()
+
+var _last_hover_text := ""
 
 func _on_motion(mouse: Vector2) -> void:
 	var target := build_target(mouse)
 	hover_cell = target.get("cell") if target.get("cell") is Vector2i else Vector2i(-1, -1)
+	var text := ""
+	if hover_cell.x >= 0:
+		var free := board.can_place([hover_cell.x, hover_cell.y], [1, 1], 0)
+		text = "Клетка (%d, %d)" % [hover_cell.x, hover_cell.y] + (" · свободно" if free else " · занято")
+	if text != _last_hover_text:
+		_last_hover_text = text
+		hover_info.emit(text)
 	if not carry.is_empty():
 		_refresh_ghost()
 	if ToolManager.current == ToolManager.Tool.TESTER:
@@ -294,9 +349,12 @@ func _on_gesture(action: String, data: Dictionary) -> void:
 		"place":
 			_commit_place()
 		"detach":
-			_detach_part(str(data.get("id", "")), data)
+			_detach_part(str(data.get("id", "")))
 		"wire_end":
 			_record_link(str(data.get("from", "")), str(data.get("to", "")))
+			_add_wire_visual(str(data.get("from", "")), str(data.get("to", "")))
+			spark(data.get("point", Vector3.ZERO))
+			notify.emit("Припаяно: %s → %s" % [data.get("from", ""), data.get("to", "")])
 		"cancel":
 			cancel_carry()
 
@@ -331,8 +389,14 @@ func _commit_place() -> void:
 		board.traces.append({"id": entry.id, "kind": scene_path.get_file().get_basename(), "cell": entry.cell, "rot": rot})
 	else:
 		board.components.append(entry)
-	carry = {}
-	ToolManager.held = ""
+	if carry.get("mode") == "scene":
+		# Серийное размещение: тот же тип детали до Esc/ПКМ.
+		_counter += 1
+		var base2 := scene_path.get_file().get_basename().to_upper().replace("PRIMITIVE_", "").replace("TRACE_", "").replace("_", "")
+		carry.id = "P%d_%s" % [_counter, base2]
+	else:
+		carry = {}
+		ToolManager.held = ""
 	ghost.visible = false
 	grid_map.clear()
 	part_placed.emit(str(entry.id))
@@ -356,7 +420,7 @@ func _commit_move() -> void:
 	grid_map.clear()
 	part_placed.emit(id)
 
-func _detach_part(id: String, data: Dictionary) -> void:
+func _detach_part(id: String) -> void:
 	if id.is_empty():
 		return
 	var node := _find_node(id)
@@ -374,7 +438,6 @@ func _detach_part(id: String, data: Dictionary) -> void:
 		cs.position = Vector3.UP * size.y * 0.5
 		body.add_child(cs)
 		var parent := node.get_parent()
-		var g_basis := node.global_transform.basis
 		parent.remove_child(node)
 		body.transform = world_xform
 		debris_root.add_child(body)
@@ -417,7 +480,7 @@ func save_board(path: String) -> bool:
 
 func load_board(path: String) -> bool:
 	var res := load(path)
-	if not res is BoardData:
+	if not res is BoardDataScript:
 		return false
 	_clear_board()
 	board = res
@@ -447,13 +510,14 @@ func load_board(path: String) -> bool:
 		traces_root.add_child(tile)
 	for link: Array in board.links:
 		SimRegistry.connect_ports(str(link[0]), str(link[1]))
+	rebuild_wire_visuals()
 	return true
 
 func _clear_board() -> void:
-	for root in [parts_root, traces_root, debris_root]:
+	for root in [parts_root, traces_root, debris_root, wires_root]:
 		for child in root.get_children():
 			child.free()
-	board = BoardData.new()
+	board = BoardDataScript.new()
 
 # ---------- Валидация ----------
 
@@ -462,8 +526,245 @@ func validate_board() -> PackedStringArray:
 	for link: Array in board.links:
 		if not SimRegistry.has_pin(str(link[0])) or not SimRegistry.has_pin(str(link[1])):
 			issues.append("Битая связь: %s — %s" % [link[0], link[1]])
-	var drive := 0
-	for id: String in ["P"]:  # Проверка источника такта уже в реестре; здесь — перечисление.
-		pass
 	validated.emit(issues)
 	return issues
+
+# ---------- Публичный API: сценарии (DSL) и мир ----------
+
+signal watch_requested(pin: String)
+
+func get_part_node(id: String) -> Node3D:
+	return _find_node(id)
+
+func place_typed(kind: String, id: String, cell: Vector2i, rot: int, params: Dictionary) -> bool:
+	var scene_path: String = TYPE_MAP.get(kind, "")
+	if scene_path.is_empty():
+		notify.emit("Неизвестный тип: " + kind)
+		return false
+	if _find_node(id) != null:
+		notify.emit("Деталь «%s» уже есть — id должен быть уникальным" % id)
+		return false
+	var span := Vector2i(1, 1)
+	if kind == "chip_dip16":
+		span = Vector2i(2, 1)
+	elif kind == "chip_dip8":
+		span = Vector2i(1, 1)
+	else:
+		var proto: Node3D = load(scene_path).instantiate()
+		var size: Vector3 = proto.size_mm() if proto.has_method("size_mm") else Vector3.ONE
+		span = Vector2i(ceili(size.x / grid_mm_f()), ceili(size.z / grid_mm_f()))
+		proto.free()
+	if not board.can_place([cell.x, cell.y], [span.x, span.y], rot):
+		notify.emit("Клетка занята: (%d, %d)" % [cell.x, cell.y])
+		return false
+	var node: Node3D = load(scene_path).instantiate()
+	node.params = params
+	node.component_id = id
+	node.position = cell_center_m(cell, span, rot)
+	node.rotation.y = -rot * PI * 0.5
+	var is_trace := scene_path.get_file().begins_with("trace_")
+	(traces_root if is_trace else parts_root).add_child(node)
+	var entry := {"id": id, "scene": scene_path, "cell": [cell.x, cell.y], "rot": rot, "params": node.params, "span": [span.x, span.y]}
+	if is_trace:
+		board.traces.append({"id": id, "kind": scene_path.get_file().get_basename(), "cell": entry.cell, "rot": rot})
+	else:
+		board.components.append(entry)
+	notify.emit("Размещено: %s в клетке (%d, %d)" % [id, cell.x, cell.y])
+	return true
+
+func erase_part(id: String) -> bool:
+	var node := _find_node(id)
+	if node == null:
+		notify.emit("Деталь не найдена: " + id)
+		return false
+	SimRegistry.unregister(node)
+	_remove_links_where(func(link: Array) -> bool: return str(link[0]).begins_with(id + ".") or str(link[1]).begins_with(id + "."))
+	node.free()
+	var keep: Array[Dictionary] = []
+	for c: Dictionary in board.components:
+		if str(c.get("id", "")) != id:
+			keep.append(c)
+	board.components = keep
+	var keep_t: Array[Dictionary] = []
+	for t: Dictionary in board.traces:
+		if str(t.get("id", "")) != id:
+			keep_t.append(t)
+	board.traces = keep_t
+	notify.emit("Удалено: " + id)
+	return true
+
+func resize_board(width_mm: float, height_mm: float) -> bool:
+	var w := int(width_mm)
+	var h := int(height_mm)
+	if w < 20 or h < 20 or w > 400 or h > 400 or w % 10 != 0 or h % 10 != 0:
+		notify.emit("Размер платы: 20…400 мм, кратно 10")
+		return false
+	clear_all()
+	board.width = w / 10
+	board.height = h / 10
+	board_resized.emit(float(w), float(h))
+	notify.emit("Плата: %d×%d мм" % [w, h])
+	return true
+
+func clear_all() -> void:
+	cancel_carry()
+	for root in [parts_root, traces_root, debris_root, wires_root]:
+		if root == null:
+			continue
+		for child in root.get_children():
+			child.free()
+	var keep_w := board.width
+	var keep_h := board.height
+	board = BoardDataScript.new()
+	board.width = keep_w
+	board.height = keep_h
+	grid_map.clear()
+
+func clear_debris() -> void:
+	for child in debris_root.get_children():
+		child.free()
+	notify.emit("Мусор убран.")
+
+func wire_pins(a: String, b: String) -> bool:
+	if not SimRegistry.has_pin(a) or not SimRegistry.has_pin(b):
+		notify.emit("Нет пина: %s или %s" % [a, b])
+		return false
+	if not SimRegistry.connect_ports(a, b):
+		notify.emit("Уже соединены или невозможно: %s — %s" % [a, b])
+		return false
+	_record_link(a, b)
+	_add_wire_visual(a, b)
+	spark(pin_world(b))
+	notify.emit("Припаяно: %s → %s" % [a, b])
+	return true
+
+func unwire_pins(a: String, b: String) -> bool:
+	SimRegistry.disconnect_ports(a, b)
+	var link := [a, b] if a < b else [b, a]
+	var keep: Array[Array] = []
+	for l: Array in board.links:
+		if l != link:
+			keep.append(l)
+	board.links = keep
+	_remove_wire_visual(link)
+	notify.emit("Снято: %s — %s" % [link[0], link[1]])
+	return true
+
+func remove_pin_links(pin: String) -> int:
+	return _remove_links_where(func(link: Array) -> bool: return link[0] == pin or link[1] == pin)
+
+func _remove_links_where(pred: Callable) -> int:
+	var removed := 0
+	var kept: Array[Array] = []
+	for link: Array in board.links:
+		if pred.call(link):
+			SimRegistry.disconnect_ports(str(link[0]), str(link[1]))
+			_remove_wire_visual(link)
+			removed += 1
+		else:
+			kept.append(link)
+	board.links = kept
+	return removed
+
+func pin_world(pin: String) -> Vector3:
+	var id := pin.get_slice(".", 0)
+	var pin_name := pin.get_slice(".", 1)
+	var node := _find_node(id)
+	if node == null:
+		return Vector3.ZERO
+	var local := Vector3.ZERO
+	if node.has_method("pin_layout_mm"):
+		local = node.pin_layout_mm().get(pin_name, Vector3.ZERO)
+		return node.global_transform * Vector3(local.x * MM, 0.0005, local.z * MM)
+	return node.global_transform.origin + Vector3(0, 0.0005, 0)
+
+func _rod_between(parent: Node3D, a: Vector3, b: Vector3, diameter: float) -> void:
+	var cylinder := CylinderMesh.new()
+	cylinder.top_radius = diameter * 0.5
+	cylinder.bottom_radius = diameter * 0.5
+	cylinder.height = a.distance_to(b)
+	cylinder.radial_segments = 8
+	cylinder.rings = 0
+	var mi := MeshInstance3D.new()
+	mi.mesh = cylinder
+	mi.material_override = _wire_mat()
+	mi.position = (a + b) * 0.5
+	mi.quaternion = Quaternion(Vector3.UP, (b - a).normalized())
+	parent.add_child(mi)
+
+var _wire_material: StandardMaterial3D
+
+func _wire_mat() -> StandardMaterial3D:
+	if _wire_material == null:
+		_wire_material = StandardMaterial3D.new()
+		_wire_material.albedo_color = Color("d89a4a")
+		_wire_material.metallic = 0.85
+		_wire_material.roughness = 0.32
+	return _wire_material
+
+func _add_wire_visual(a: String, b: String) -> void:
+	if a.is_empty() or b.is_empty():
+		return
+	var link := [a, b] if a < b else [b, a]
+	var va := pin_world(a)
+	var vb := pin_world(b)
+	var mid := (va + vb) * 0.5 + Vector3.UP * (0.004 + va.distance_to(vb) * 0.14)
+	var parent := Node3D.new()
+	parent.set_meta("wire", "%s,%s" % [link[0], link[1]])
+	_rod_between(parent, va, mid, 0.00038)
+	_rod_between(parent, mid, vb, 0.00038)
+	wires_root.add_child(parent)
+
+func _remove_wire_visual(link: Array) -> void:
+	var key := "%s,%s" % [link[0], link[1]]
+	for child in wires_root.get_children():
+		if child.get_meta("wire", "") == key:
+			child.free()
+
+func rebuild_wire_visuals() -> void:
+	if wires_root == null:
+		return
+	for child in wires_root.get_children():
+		child.free()
+	for link: Array in board.links:
+		_add_wire_visual(str(link[0]), str(link[1]))
+
+func spark(at: Vector3) -> void:
+	var fx := GPUParticles3D.new()
+	fx.one_shot = true
+	fx.amount = 16
+	fx.lifetime = 0.42
+	fx.explosiveness = 0.92
+	var mat := ParticleProcessMaterial.new()
+	mat.direction = Vector3.UP
+	mat.spread = 58.0
+	mat.initial_velocity_min = 0.05
+	mat.initial_velocity_max = 0.17
+	mat.gravity = Vector3(0, -0.55, 0)
+	mat.color = Color(1.0, 0.83, 0.38)
+	fx.process_material = mat
+	var draw := SphereMesh.new()
+	draw.radius = 0.0004
+	draw.height = 0.0008
+	draw.radial_segments = 6
+	draw.rings = 3
+	fx.draw_pass_1 = draw
+	fx.position = at + Vector3.UP * 0.0012
+	fx.emitting = true
+	add_child(fx)
+	get_tree().create_timer(1.2).timeout.connect(func() -> void: fx.queue_free())
+
+func _try_toggle_button(target: Dictionary) -> bool:
+	var id := str(target.get("id", ""))
+	if id.is_empty():
+		return false
+	var node := _find_node(id)
+	if node == null or node.get_script() == null:
+		return false
+	if not node.get_script().resource_path.contains("button"):
+		return false
+	var pressed := not bool(node.state.get("pressed", false))
+	node.on_event("set", {"pressed": pressed})
+	spark(target.get("point", Vector3.ZERO))
+	notify.emit("Кнопка %s: %s" % [id, "нажата" if pressed else "отпущена"])
+	return true

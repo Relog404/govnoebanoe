@@ -41,7 +41,7 @@ func set_zoom(factor: int) -> void:
 
 func hover(target: Dictionary) -> void:
 	if current == Tool.TESTER:
-		var pin := String(target.get("pin", ""))
+		var pin: String = str(target.get("pin", ""))
 		probed.emit(pin, SimBus.sample(pin))
 
 # Редактор вызывает после raycast, только для мыши, не поглощённой HUD.
@@ -51,8 +51,8 @@ func apply(e: InputEventMouseButton, target: Dictionary) -> void:
 		return
 	var key := e.button_index
 	var point: Vector3 = target.get("point", Vector3.ZERO)
-	var id := String(target.get("id", ""))
-	var pin := String(target.get("pin", ""))
+	var id: String = str(target.get("id", ""))
+	var pin: String = str(target.get("pin", ""))
 	if current == Tool.LOUPE:
 		match key:
 			MOUSE_BUTTON_LEFT: locked = true; pivot = point

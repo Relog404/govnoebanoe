@@ -4,11 +4,11 @@ extends CanvasLayer
 const HudIcon = preload("res://ui/hud_icon.gd")
 const TOOL_NAMES := ["Паяльник", "Пинцет", "Тестер", "Лупа", "Курсор"]
 const TOOL_HINTS := [
-	"ЛКМ: порт A → порт B, дорожка между ними. ПКМ: отмена.",
-	"ЛКМ: взять / поставить. ПКМ: снять деталь (упадёт на стол).",
+	"ЛКМ: порт A → порт B — провод между ними. Esc: отмена.",
+	"ЛКМ: взять / поставить (серийно). Esc: закончить серию. ПКМ: снять с платы.",
 	"Наведи на порт или дорожку: 0 / 1 / Z / X, вольты, миллиамперы.",
-	"Колесо: ×1 ×2 ×4 ×8 вокруг курсора. ЛКМ: зафиксировать. ПКМ: сброс. Плату не редактирует.",
-	"ЛКМ: выбрать и осмотреть. ПКМ: снять связи с контакта.",
+	"Колесо: ×1 ×2 ×4 ×8 вокруг курсора. ЛКМ: зафиксировать. ПКМ: сброс.",
+	"ЛКМ: нажми кнопку. ПКМ по контакту: отпаять все связи с него.",
 ]
 var _tool_buttons: Array[Button] = []
 var _tool_label: Label
@@ -20,6 +20,10 @@ var _toast: Label
 var _tick_box: SpinBox
 var _speed_box: SpinBox
 var _library: Node
+var _editor: Node
+var _status_left: Label
+var _status_right: Label
+var _poll_accum := 0.0
 
 func _ready() -> void:
 	var root := $Root
@@ -77,7 +81,7 @@ func _build_top(root: Control) -> void:
 	for i in 5:
 		var b := _mk_button(tool_box, "", 52)
 		var icon := HudIcon.new()
-		icon.kind = i
+		icon.kind = i as HudIcon.Kind
 		icon.position = Vector2(11, 2)
 		b.add_child(icon)
 		b.tooltip_text = "%d — %s" % [i + 1, TOOL_NAMES[i]]
@@ -177,6 +181,37 @@ func _build_bottom(root: Control) -> void:
 	# Валидация
 	var validate_button := _mk_button(bar, "✓ Проверить плату", 130)
 	validate_button.pressed.connect(_on_validate)
+	# Полоса статуса: клетка под курсором (слева) и сводка платы (справа)
+	var status_margin := MarginContainer.new()
+	status_margin.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_WIDE)
+	status_margin.add_theme_constant_override("margin_left", 12)
+	status_margin.add_theme_constant_override("margin_right", 12)
+	status_margin.add_theme_constant_override("margin_bottom", 62)
+	status_margin.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var status_bar := HBoxContainer.new()
+	status_bar.alignment = BoxContainer.ALIGNMENT_CENTER
+	status_bar.add_theme_constant_override("separation", 0)
+	var status_panel := PanelContainer.new()
+	status_panel.add_theme_stylebox_override("panel", _panel(Color(0.035, 0.075, 0.065, 0.88), Color(0.12, 0.30, 0.26)))
+	status_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var status_inner := HBoxContainer.new()
+	status_inner.add_theme_constant_override("separation", 18)
+	status_panel.add_child(status_inner)
+	_status_left = Label.new()
+	_status_left.text = "Клетка —"
+	_status_left.add_theme_color_override("font_color", Color(0.66, 0.92, 0.80))
+	_status_left.add_theme_font_size_override("font_size", 12)
+	_status_left.custom_minimum_size = Vector2(300, 0)
+	status_inner.add_child(_status_left)
+	_status_right = Label.new()
+	_status_right.text = "Плата —"
+	_status_right.add_theme_color_override("font_color", Color(0.55, 0.78, 0.68))
+	_status_right.add_theme_font_size_override("font_size", 12)
+	_status_right.custom_minimum_size = Vector2(260, 0)
+	status_inner.add_child(_status_right)
+	status_bar.add_child(status_panel)
+	status_margin.add_child(status_bar)
+	root.add_child(status_margin)
 	# Тост
 	_toast = Label.new()
 	_toast.anchor_left = 0.5
@@ -190,9 +225,26 @@ func _build_bottom(root: Control) -> void:
 	_toast.visible = false
 	root.add_child(_toast)
 
-func _process(_delta: float) -> void:
+func set_editor(node: Node) -> void:
+	_editor = node
+
+func set_hover_info(text: String) -> void:
+	_status_left.text = text if not text.is_empty() else "Плата / стол"
+
+func _process(delta: float) -> void:
 	_time_label.text = "Такт %d" % SimClock.now
 	_play_button.text = "⏸" if SimClock.playing else "▶"
+	_poll_accum += delta
+	if _poll_accum >= 0.5 and _editor != null and is_instance_valid(_editor):
+		_poll_accum = 0.0
+		var board = _editor.get("board")
+		if board != null:
+			var comps: int = board.components.size() if board.get("components") != null else 0
+			var wires: int = board.links.size() if board.get("links") != null else 0
+			var traces: int = board.traces.size() if board.get("traces") != null else 0
+			_status_right.text = "Плата %d×%d мм · деталей %d · проводов %d%s" % [
+				int(board.width) * 10, int(board.height) * 10, comps, wires,
+				(" · дорожек %d" % traces) if traces > 0 else ""]
 
 func _on_tool_changed(tool: int) -> void:
 	for i in _tool_buttons.size():

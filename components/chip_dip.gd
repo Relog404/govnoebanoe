@@ -72,6 +72,13 @@ func _g_pins(root: Node3D, body: Vector3) -> void:
 		piece(root, BoxMesh_sized(0.9, 0.08, 1.35), Vector3(pos.x, 0.04, pos.z), tin)
 
 func _ready() -> void:
+	# DIP-16: до регистрации в реестре достраиваем порты P9..P16.
+	var want16 := int(params.get("pins", 8)) == 16
+	if definition and int(definition.parameters.get("pins", 8)) == 16:
+		want16 = true
+	if want16:
+		for i in range(9, 17):
+			ports["P%d" % i] = "in"
 	super._ready()
 	var src: Variant = definition if definition and not definition.isa_path.is_empty() else params.get("isa", "")
 	if src is Resource:
@@ -118,15 +125,38 @@ func on_event(kind: String, data: Dictionary = {}) -> void:
 func wake_self() -> void:
 	SimRegistry.wake(component_id)
 
+func _pin_of(map_entry: Variant, index: int) -> String:
+	# Вход может задавать одиночный пин или шину из массива пинов (LSB → первый).
+	if map_entry is Array:
+		return str(map_entry[index]) if index < map_entry.size() else ""
+	return str(map_entry) if index == 0 else ""
+
+func _read_port(map_entry: Variant) -> int:
+	if map_entry is Array:
+		var value := 0
+		for i in map_entry.size():
+			var s: Dictionary = read_pin(str(map_entry[i]))
+			var bit: int = 1 if ((s.get("volts") != null and float(s.volts) > 1.65) or int(s.get("sig", 2)) == SimBus.Sig.ONE) else 0
+			value |= bit << i
+		return value
+	var s: Dictionary = read_pin(str(map_entry))
+	return 1 if ((s.get("volts") != null and float(s.volts) > 1.65) or int(s.get("sig", 2)) == SimBus.Sig.ONE) else 0
+
+func _drive_port(map_entry: Variant, value: int) -> void:
+	if map_entry is Array:
+		for i in map_entry.size():
+			if not ports.has(str(map_entry[i])):
+				continue
+			SimBus.drive(endpoint(str(map_entry[i])), SimBus.Sig.ONE if (value >> i) & 1 else SimBus.Sig.ZERO)
+		return
+	var pin_name := str(map_entry)
+	if ports.has(pin_name):
+		SimBus.drive(endpoint(pin_name), SimBus.Sig.ONE if value != 0 else SimBus.Sig.ZERO)
+
 func _io(map: Dictionary) -> void:
 	for port_str: String in map:
-		var pin_name := str(map[port_str])
-		if not ports.has(pin_name):
-			continue
-		var port := int(port_str)
 		if _running:
-			var s := read_pin(pin_name)
-			_vm.inputs[str(port)] = int(s.volts > 1.65) if s.volts != null else 0
+			_vm.inputs[str(int(port_str))] = _read_port(map[port_str])
 
 func tick(_at: int) -> void:
 	if not _running or not _vm.get("ok", false):
@@ -138,12 +168,11 @@ func tick(_at: int) -> void:
 		state.reg = _vm.regs.duplicate()
 		state.halted = bool(_vm.halted)
 		var out: Dictionary = _vm.outputs
-		for port_str: String in _iom():
-			var pin_name := str(_iom()[port_str])
-			if not ports.has(pin_name):
-				continue
-			var v := int(out.get(port_str, 0)) != 0
-			SimBus.drive(endpoint(pin_name), SimBus.Sig.ONE if v else SimBus.Sig.ZERO)
+		# Порт становится выходом только после первой OUT на него (как GPIO
+		# реального кристалла): чисто входные порты не должны вести ноль.
+		for port_str: String in out:
+			if _iom().has(port_str):
+				_drive_port(_iom()[port_str], int(out[port_str]))
 		if _vm.halted:
 			_running = false
 			state.fault = str(_vm.fault)

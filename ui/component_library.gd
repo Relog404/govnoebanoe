@@ -13,13 +13,13 @@ func _ready() -> void:
 	grid.columns = 2
 	grid.add_theme_constant_override("h_separation", 6)
 	grid.add_theme_constant_override("v_separation", 6)
-	for name: String in library:
+	for part_name: String in library:
 		var item_script: Script = load("res://ui/library_item.gd")
-		var b: Button = item_script.new(name, library[name])
+		var b: Button = item_script.new(part_name, library[part_name])
 		b.custom_minimum_size = Vector2(118, 40)
-		b.pressed.connect(_on_item.bind(library[name]))
+		b.pressed.connect(_on_item.bind(library[part_name]))
 		grid.add_child(b)
-		_items.append({"name": name, "path": library[name]})
+		_items.append({"name": part_name, "path": library[part_name]})
 	var scroll := ScrollContainer.new()
 	scroll.name = "List"
 	scroll.custom_minimum_size = Vector2(260, 0)

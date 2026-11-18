@@ -49,7 +49,7 @@ func forget(id: String, pins: Array) -> void:
 		_pulls.erase(pin)
 	# Дорожки/кнопки могут регистрировать ветви как «<id>» или «<id>:N».
 	for key: Variant in _branches.keys():
-		if key == id or String(key).begins_with(id + ":"):
+		if key == id or str(key).begins_with(id + ":"):
 			_branches.erase(key)
 	_dirty = true
 

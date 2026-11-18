@@ -3,14 +3,124 @@ extends Node
 # Каждому чипу можно передать свою таблицу. JSON описывает байты, операнды
 # и последовательность микроопераций; никакого eval и загрузки скриптов.
 const OPS := {"mov":"rv", "add":"rv", "sub":"rv", "and":"rv", "or":"rv", "xor":"rv",
-	"ld":"rv", "st":"vv", "jmp":"v", "jz":"vv", "jnz":"vv", "not":"rv",
-	"in":"rv", "out":"vv", "halt":"", "nop":""}
+	"ld":"rv", "st":"vv", "jmp":"v", "jz":"vv", "jnz":"vv",
+	"in":"rv", "out":"vv", "ldi":"rvv", "halt":"", "nop":""}
 
 func _bad(message: String, line: int = 0) -> Dictionary:
 	return {"ok": false, "error": message, "line": line}
 
 func _uint(v: Variant, maximum: int) -> bool:
 	return (v is int or v is float) and v >= 0 and v <= maximum and int(v) == v
+
+# Убирает «;» вне кавычек: комментарий обрезается, строки остаются целыми.
+func _strip_comment(raw: String) -> String:
+	var out := ""
+	var in_string := false
+	var i := 0
+	while i < raw.length():
+		var ch := raw[i]
+		if ch == '"':
+			in_string = not in_string
+			out += ch
+		elif ch == ";" and not in_string:
+			break
+		else:
+			out += ch
+		i += 1
+	return out
+
+# Верхний регистр вне строк (строки для DB должны сохранять UTF-8 как есть).
+func _upper_outside_strings(raw: String) -> String:
+	var out := ""
+	var in_string := false
+	for ch in raw:
+		if ch == '"':
+			in_string = not in_string
+			out += ch
+		elif in_string:
+			out += ch
+		else:
+			out += ch.to_upper()
+	return out
+
+# Индекс «:» вне кавычек?
+func _colon_in_string(text: String, idx: int) -> bool:
+	var in_string := false
+	for i in text.length():
+		if i >= idx:
+			break
+		if text[i] == '"':
+			in_string = not in_string
+	return in_string
+
+# Токенизатор операндов DB: слова и строки в кавычках.
+func _db_tokens(text: String) -> Array:
+	var tokens := []
+	var cur := ""
+	var i := 0
+	var n := text.length()
+	while i < n:
+		var ch := text[i]
+		if ch == '"':
+			if cur.strip_edges() != "":
+				tokens.append({"t": "word", "v": cur.strip_edges()})
+			cur = ""
+			var j := i + 1
+			var buf := ""
+			while j < n and text[j] != '"':
+				if text[j] == '\\' and j + 1 < n:
+					j += 1
+					match text[j]:
+						"n": buf += "\n"
+						"0": buf += char(0)
+						'"': buf += '"'
+						"\\": buf += "\\"
+						_: buf += text[j]
+				else:
+					buf += text[j]
+				j += 1
+			tokens.append({"t": "str", "v": buf})
+			i = j + 1
+			continue
+		elif ch == "," or ch == " " or ch == "\t":
+			if cur.strip_edges() != "":
+				tokens.append({"t": "word", "v": cur.strip_edges()})
+			cur = ""
+		else:
+			cur += ch
+		i += 1
+	if cur.strip_edges() != "":
+		tokens.append({"t": "word", "v": cur.strip_edges()})
+	return tokens
+
+func _parse_db_word(token: String) -> Dictionary:
+	# Возвращает {"byte": int} или {"label": String} или {} при ошибке.
+	var t := token.strip_edges()
+	var lower := t.to_lower()
+	var hex_digits := ""
+	if lower.begins_with("$"):
+		hex_digits = lower.substr(1)
+	elif lower.begins_with("0x"):
+		hex_digits = lower.substr(2)
+	if not hex_digits.is_empty():
+		if hex_digits.is_valid_hex_number(false):
+			return {"byte": hex_digits.hex_to_int()}
+		return {}
+	if lower.begins_with("%"):
+		var bin := lower.substr(1)
+		if bin.is_valid_int() and bin.replace("0", "").replace("1", "") == "":
+			return {"byte": bin.bin_to_int()}
+		return {}
+	elif lower.begins_with("0b"):
+		var bin2 := lower.substr(2)
+		if bin2.replace("0", "").replace("1", "") == "":
+			return {"byte": bin2.bin_to_int()}
+		return {}
+	elif t.is_valid_int():
+		return {"byte": t.to_int()}
+	elif t.is_valid_identifier():
+		return {"label": t.to_upper()}
+	return {}
 
 func load_isa(path: String) -> Dictionary:
 	var f := FileAccess.open(path, FileAccess.READ)
@@ -31,7 +141,7 @@ func compile_isa(text: String) -> Dictionary:
 	for item: Variant in doc.instructions:
 		if not item is Dictionary or not item.get("name") is String or not _uint(item.get("code"), 255):
 			return _bad("Неверное имя или код инструкции")
-		var name_uc := String(item.name).to_upper()
+		var name_uc := str(item.name).to_upper()
 		var code := int(item.code)
 		if not name_uc.is_valid_identifier() or names.has(name_uc) or codes.has(code):
 			return _bad("Повтор или неверное имя: " + name_uc)
@@ -68,16 +178,48 @@ func assemble(source: String, isa: Dictionary) -> Dictionary:
 	var line := 0
 	for raw: String in source.split("\n"):
 		line += 1
-		var s := raw.get_slice(";", 0).strip_edges().to_upper()
-		if ":" in s:
+		var clean := _strip_comment(raw)
+		var s := _upper_outside_strings(clean).strip_edges()
+		var colon := s.find(":")
+		if colon >= 0 and _colon_in_string(s, colon):
+			colon = -1
+		if colon >= 0:
 			var label := s.get_slice(":", 0).strip_edges()
 			if not label.is_valid_identifier() or labels.has(label):
 				return _bad("Неверная или повторная метка", line)
 			labels[label] = pc
-			s = s.substr(s.find(":") + 1).strip_edges()
+			s = s.substr(colon + 1).strip_edges()
 		if s.is_empty():
 			continue
 		var words := s.replace("\t", " ").replace(",", " ").split(" ", false)
+		if words[0] == "DB":
+			var bytes := []
+			var pending := []  # ссылки на метки (в т.ч. вперёд), адрес = 1 байт
+			var joined := clean.substr(clean.find("DB") + 2) if clean.find("DB") >= 0 else s.substr(2)
+			for tok: Dictionary in _db_tokens(joined):
+				if tok.t == "str":
+					var buf := str(tok.v).to_utf8_buffer()
+					for b in buf:
+						bytes.append(b)
+						pending.append(null)
+					continue
+				var parsed := _parse_db_word(str(tok.v))
+				if parsed.has("byte"):
+					var b2 := int(parsed.byte)
+					if b2 < 0 or b2 > 255:
+						return _bad("Неверный байт в DB: " + str(tok.v), line)
+					bytes.append(b2)
+					pending.append(null)
+				elif parsed.has("label"):
+					bytes.append(0)  # плейсхолдер, адрес метки запишем во втором проходе
+					pending.append(str(parsed.label))
+				else:
+					return _bad("Неверный байт в DB: " + str(tok.v), line)
+			rows.append([line, {"name": "DB", "bytes": bytes, "pending": pending}, []])
+			pc += bytes.size()
+			if pc > 256:
+				return _bad("Программа больше 256 байт", line)
+			continue
 		if not isa.names.has(words[0]):
 			return _bad("Неизвестная инструкция: " + words[0], line)
 		var desc: Dictionary = isa.names[words[0]]
@@ -90,6 +232,17 @@ func assemble(source: String, isa: Dictionary) -> Dictionary:
 	var image := []
 	for row: Array in rows:
 		var desc: Dictionary = row[1]
+		if desc.get("name") == "DB":
+			var db_bytes: Array = desc.bytes
+			var pending: Array = desc.get("pending", [])
+			for i in db_bytes.size():
+				var label: Variant = pending[i] if i < pending.size() else null
+				if label != null:
+					if not labels.has(str(label)):
+						return _bad("Неизвестная метка в DB: " + str(label), row[0])
+					db_bytes[i] = int(labels[str(label)])
+			image.append_array(db_bytes)
+			continue
 		image.append(desc.code)
 		for i in desc.args.size():
 			var token: String = row[2][i + 1]
@@ -168,7 +321,7 @@ func execute(vm: Dictionary, isa: Dictionary, chip: String) -> bool:
 	vm.pc = ins.end
 	for op: Array in ins.d["do"]:
 		var dst := 0
-		var values := [0, 0]
+		var values := [0, 0, 0]
 		for i in range(1, op.size()):
 			var arg := int(op[i])
 			var raw := int(ins.operands[arg])
@@ -192,6 +345,7 @@ func execute(vm: Dictionary, isa: Dictionary, chip: String) -> bool:
 			"jnz":
 				if a != 0: vm.pc = b
 			"not": vm.regs[dst] = (~b) & 255
+			"ldi": vm.regs[dst] = int(vm.ram[(int(values[1]) + int(values[2])) & 255])
 			"in": vm.regs[dst] = int(vm.inputs.get(str(b), 0)) & 255
 			"out": vm.outputs[str(a)] = b
 			"halt":

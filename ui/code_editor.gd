@@ -68,8 +68,8 @@ func _load_isa() -> void:
 		return
 	_status.text = "ISA «%s» загружена." % JSON.parse_string(FileAccess.get_file_as_string(_isa_path.text.strip_edges())).get("name", "?")
 	var hl := CodeHighlighter.new()
-	for name: String in _isa.names:
-		hl.add_keyword_color(name, Color(0.55, 0.85, 1.0))
+	for mnemonic: String in _isa.names:
+		hl.add_keyword_color(mnemonic, Color(0.55, 0.85, 1.0))
 	for i in int(_isa.registers):
 		hl.add_keyword_color("R%d" % i, Color(1.0, 0.85, 0.45))
 	hl.add_keyword_color("HALT", Color(1.0, 0.55, 0.5))

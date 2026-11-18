@@ -12,15 +12,19 @@ const PANEL_NODES := ["IsaEditor", "CodeEditor", "DebuggerPanel"]
 
 func _ready() -> void:
 	editor = get_node("BoardEditor")
+	editor.notify.connect(func(message: String) -> void: $Hud.toast(message))
+	editor.hover_info.connect(func(text: String) -> void: $Hud.set_hover_info(text))
+	editor.board_resized.connect(_on_board_resized)
 	var library: Control = $Studio/ComponentLibrary
 	$Hud.set_library(library)
+	$Hud.set_editor(editor)
 	library.item_selected.connect(_on_library_selected)
 	$Studio/DropCatcher.dropped.connect(_on_drop)
 	var code: Control = $Studio/CodeEditor
 	code.image_flashed.connect(func(chip_id: String, image: Array) -> void: $Studio/DebuggerPanel.show_image(chip_id, image))
 	_wire_panel_toggles()
 	ToolManager.zoom_changed.connect(_on_zoom_changed)
-	_make_board_plate()
+	_make_board_plate(12 * 10, 8 * 10)
 	_restore_autosave()
 	var autosave := Timer.new()
 	autosave.wait_time = 60.0
@@ -28,13 +32,20 @@ func _ready() -> void:
 	autosave.timeout.connect(_autosave)
 	add_child(autosave)
 	_update_camera()
-	$Hud.toast("1…5 — инструменты · ЛКМ — применить · ПКМ — отмена · R — поворот")
+	$Hud.toast("1…5 — инструменты · ЛКМ — применить · Esc — отмена · R — поворот · G — «Кремний»")
 
 # ---------- Плита платы ----------
+var _plate_nodes: Array[Node3D] = []
 
-func _make_board_plate() -> void:
-	var w := 12 * 10
-	var h := 8 * 10
+func _on_board_resized(width_mm: float, height_mm: float) -> void:
+	_make_board_plate(int(width_mm), int(height_mm))
+
+func _make_board_plate(w_mm: int, h_mm: int) -> void:
+	for node in _plate_nodes:
+		node.queue_free()
+	_plate_nodes.clear()
+	var w := w_mm
+	var h := h_mm
 	var img := Image.create(w * 4, h * 4, false, Image.FORMAT_RGB8)
 	var base := Color("0f5142")
 	var line := Color("2a6b58")
@@ -51,7 +62,7 @@ func _make_board_plate() -> void:
 			img.set_pixel(x, y, c)
 	var tex := ImageTexture.create_from_image(img)
 	var plane := PlaneMesh.new()
-	plane.size = Vector2(0.12, 0.08)
+	plane.size = Vector2(w * 0.001, h * 0.001)
 	var mat := StandardMaterial3D.new()
 	mat.albedo_texture = tex
 	mat.roughness = 0.55
@@ -61,8 +72,9 @@ func _make_board_plate() -> void:
 	mi.material_override = mat
 	mi.position = Vector3(0, -0.0008, 0)
 	add_child(mi)
+	_plate_nodes.append(mi)
 	var back := BoxMesh.new()
-	back.size = Vector3(0.121, 0.0012, 0.081)
+	back.size = Vector3(w * 0.001 + 0.001, 0.0012, h * 0.001 + 0.001)
 	var back_mat := StandardMaterial3D.new()
 	back_mat.albedo_color = Color("0b3d31")
 	back_mat.roughness = 0.7
@@ -71,6 +83,7 @@ func _make_board_plate() -> void:
 	back_mi.material_override = back_mat
 	back_mi.position = Vector3(0, -0.0015, 0)
 	add_child(back_mi)
+	_plate_nodes.append(back_mi)
 
 # ---------- Панели ISA / код / отладка ----------
 
@@ -83,21 +96,24 @@ func _wire_panel_toggles() -> void:
 	bar.offset_top = 8.0
 	bar.add_theme_constant_override("separation", 6)
 	studio.add_child(bar)
-	for pair: Array in [["IsaEditor", "ISA"], ["CodeEditor", "Код"], ["DebuggerPanel", "Отладка"]]:
+	for pair: Array in [["IsaEditor", "ISA"], ["CodeEditor", "Код"], ["DebuggerPanel", "Отладка"], ["BoardScriptPanel", "Кремний"]]:
 		var panel: Control = studio.get_node(pair[0])
 		panel.visible = false
-		panel.anchor_left = 1.0
-		panel.anchor_right = 1.0
-		panel.anchor_top = 0.5
-		panel.anchor_bottom = 0.5
-		panel.offset_left = -530.0
-		panel.offset_right = -10.0
-		panel.offset_top = -260.0
-		panel.offset_bottom = 260.0
+		var script_panel: bool = pair[0] == "BoardScriptPanel"
+		if not script_panel:
+			panel.anchor_left = 1.0
+			panel.anchor_right = 1.0
+			panel.anchor_top = 0.5
+			panel.anchor_bottom = 0.5
+			panel.offset_left = -530.0
+			panel.offset_right = -10.0
+			panel.offset_top = -260.0
+			panel.offset_bottom = 260.0
 		var toggle := Button.new()
 		toggle.text = pair[1]
 		toggle.toggle_mode = true
-		toggle.custom_minimum_size = Vector2(78, 34)
+		toggle.custom_minimum_size = Vector2(78 if pair[1] != "Кремний" else 108, 34)
+		toggle.tooltip_text = "Сценарий платы на «Кремнии» — генерация платы кодом" if script_panel else ""
 		toggle.toggled.connect(func(on: bool) -> void:
 			panel.visible = on
 			if on:
@@ -105,6 +121,20 @@ func _wire_panel_toggles() -> void:
 					if other != pair[0]:
 						studio.get_node(other).visible = false)
 		bar.add_child(toggle)
+
+func _unhandled_key_input(event: InputEvent) -> void:
+	if event is InputEventKey and event.pressed and not event.echo:
+		var panel: Control = $Studio/BoardScriptPanel
+		if event.keycode == KEY_ESCAPE and panel.visible:
+			panel.close()
+			get_viewport().set_input_as_handled()
+		elif event.keycode == KEY_G and not _any_focus_is_text():
+			panel.visible = not panel.visible
+			get_viewport().set_input_as_handled()
+
+func _any_focus_is_text() -> bool:
+	var focus := get_viewport().gui_get_focus_owner()
+	return focus is LineEdit or focus is CodeEdit or focus is TextEdit
 
 # ---------- Палитра ----------
 

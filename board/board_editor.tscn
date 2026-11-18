@@ -12,3 +12,5 @@ script = ExtResource("1")
 [node name="Debris" type="Node3D" parent="."]
 
 [node name="GridMap" type="GridMap" parent="."]
+
+[node name="Wires" type="Node3D" parent="."]

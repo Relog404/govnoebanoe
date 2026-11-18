@@ -1,6 +1,8 @@
 extends "res://components/component_base.gd"
 
 # Тактильная кнопка 6×6 мм: прямой контакт при нажатии.
+var _cap: MeshInstance3D
+
 func _init() -> void:
 	ports = {"1": "passive", "2": "passive"}
 	state = {"pressed": false}
@@ -24,7 +26,7 @@ func make_button(p: Dictionary) -> Node3D:
 	cap.bottom_radius = 1.75 * MM
 	cap.height = 1.15 * MM
 	cap.radial_segments = 14
-	piece(root, cap, Vector3.UP * 3.95, stock(Color(p.get("cap", "2e3336"))))
+	_cap = piece(root, cap, Vector3.UP * 3.95, stock(Color(p.get("cap", "2e3336"))))
 	for side: float in [-1.0, 1.0]:
 		rod(root, Vector3.RIGHT * 2.54 * side, Vector3.RIGHT * 2.54 * side + Vector3.UP * 0.45, 0.65, stock(SILVER, 0.8))
 	return root
@@ -36,6 +38,11 @@ func on_event(kind: String, data: Dictionary) -> void:
 		if v != state.pressed:
 			state.pressed = v
 			SimRegistry.wake(component_id)
+			refresh_visual()
+
+func refresh_visual() -> void:
+	if _cap:
+		_cap.position.y = (3.95 - 0.42) * MM if state.get("pressed", false) else 3.95 * MM
 
 func tick(_at: int) -> void:
 	if state.pressed:

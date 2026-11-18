@@ -45,13 +45,13 @@ func make_mesh() -> Node3D:
 		"e": [Vector3(-5.05, 2.78, 2.25),  Vector3(1.5, 0.75, 5.6)],
 		"c": [Vector3(5.05, 2.78, 2.25),   Vector3(1.5, 0.75, 5.6)],
 	}
-	for name: String in seg_defs:
-		var def: Array = seg_defs[name]
+	for seg_name: String in seg_defs:
+		var def: Array = seg_defs[seg_name]
 		var m := BoxMesh.new()
 		m.size = def[1] * MM
-		_segs[name] = piece(root, m, def[0], off)
-		_segs[name].set_meta("on_mat", lit)
-		_segs[name].set_meta("off_mat", off)
+		_segs[seg_name] = piece(root, m, def[0], off)
+		_segs[seg_name].set_meta("on_mat", lit)
+		_segs[seg_name].set_meta("off_mat", off)
 	var dp := BoxMesh.new()
 	dp.size = Vector3(1.5, 0.75, 1.5) * MM
 	_segs["dp"] = piece(root, dp, Vector3(7.2, 2.78, 4.45), off)
