@@ -303,13 +303,17 @@ func place_scene_immediately(scene_path: String, mouse: Vector2) -> void:
 	_commit_place()
 
 # Единый генератор id: P<N>_RESISTOR и т.п. — без PRIMITIVE_/TRACE_ и подчёркиваний.
+# Пропускает уже занятые id (например, после загрузки сохранённой платы).
 func _auto_component_id(scene_path: String) -> String:
-	_counter += 1
 	var base := scene_path.get_file().get_basename().to_upper()
 	for junk in ["PRIMITIVE_", "TRACE_"]:
 		base = base.replace(junk, "")
 	base = base.replace("_", "")
-	return "P%d_%s" % [_counter, base]
+	while true:
+		_counter += 1
+		var id := "P%d_%s" % [_counter, base]
+		if _find_node(id) == null:
+			return id
 
 func start_carry_scene(scene_path: String) -> void:
 	cancel_carry()
