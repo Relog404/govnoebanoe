@@ -1,0 +1,23 @@
+{
+  "name": "MINI-8 v1.1",
+  "registers": 8,
+  "comment": "MINI-8: 16 инструкций. LDI — индексированная загрузка (LDI Rd, addr, Ri => Rd = RAM[addr + Ri]). NOT убран в пользу LDI; остальные опкоды стабильны.",
+  "instructions": [
+    { "name": "NOP",  "code": 0,  "args": [],                 "do": [["nop"]] },
+    { "name": "LIT",  "code": 1,  "args": ["r", "u8"],        "do": [["mov", 0, 1]] },
+    { "name": "ADD",  "code": 2,  "args": ["r", "r"],         "do": [["add", 0, 1]] },
+    { "name": "SUB",  "code": 3,  "args": ["r", "r"],         "do": [["sub", 0, 1]] },
+    { "name": "AND",  "code": 4,  "args": ["r", "r"],         "do": [["and", 0, 1]] },
+    { "name": "OR",   "code": 5,  "args": ["r", "r"],         "do": [["or",  0, 1]] },
+    { "name": "XOR",  "code": 6,  "args": ["r", "r"],         "do": [["xor", 0, 1]] },
+    { "name": "LDI",  "code": 7,  "args": ["r", "addr", "r"], "do": [["ldi", 0, 1, 2]] },
+    { "name": "LD",   "code": 8,  "args": ["r", "addr"],      "do": [["ld",  0, 1]] },
+    { "name": "ST",   "code": 9,  "args": ["addr", "r"],      "do": [["st",  0, 1]] },
+    { "name": "IN",   "code": 10, "args": ["r", "u8"],        "do": [["in",  0, 1]] },
+    { "name": "OUT",  "code": 11, "args": ["u8", "r"],        "do": [["out", 0, 1]] },
+    { "name": "JMP",  "code": 12, "args": ["addr"],           "do": [["jmp", 0]] },
+    { "name": "JZ",   "code": 13, "args": ["r", "addr"],      "do": [["jz",  0, 1]] },
+    { "name": "JNZ",  "code": 14, "args": ["r", "addr"],      "do": [["jnz", 0, 1]] },
+    { "name": "HALT", "code": 15, "args": [],                  "do": [["halt"]] }
+  ]
+}

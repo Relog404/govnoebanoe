@@ -1,0 +1,28 @@
+; Silicon Sandbox — проект Godot 4, без импортируемых ассетов.
+config_version=5
+
+[application]
+config/name="Silicon Sandbox"
+run/main_scene="res://world/main.tscn"
+config/features=PackedStringArray("4.4", "GL Compatibility")
+
+[autoload]
+DebugHooks="*res://core/debug_hooks.gd"
+SimBus="*res://core/sim_bus.gd"
+SimRegistry="*res://core/sim_registry.gd"
+IsaLoader="*res://core/isa_loader.gd"
+SimClock="*res://core/sim_clock.gd"
+ToolManager="*res://core/tool_manager.gd"
+
+[display]
+window/size/viewport_width=1080
+window/size/viewport_height=680
+window/stretch/mode="canvas_items"
+
+[physics]
+3d/default_gravity=9.81
+
+[rendering]
+renderer/rendering_method="gl_compatibility"
+renderer/rendering_method.mobile="gl_compatibility"
+environment/defaults/default_clear_color=Color(0.027, 0.049, 0.057, 1)
