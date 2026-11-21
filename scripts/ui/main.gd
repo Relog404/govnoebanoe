@@ -74,7 +74,7 @@ var _run_btn: Button
 var _stop_btn: Button
 var _last_running := false
 var _last_error := ""
-var _console_index := 0
+var _console_seq := 0
 var _console_timer := 0.0
 
 var _fullscreen_layer: Control
@@ -90,7 +90,7 @@ var _help_visible := false
 
 func _ready() -> void:
 	theme = UITheme.build_theme()
-	get_window().min_size = Vector2i(1180, 720)
+	get_window().min_size = Vector2i(1100, 680)
 	get_window().title = "Chip Architect"
 	board = DemoProjects.demo_board()
 	runtime = ChipRuntime.new()
@@ -351,7 +351,7 @@ func _build_overlays() -> void:
 	head.add_child(UITheme.label("ПОМОЩЬ", 16, UITheme.ACCENT))
 	head.add_child(UITheme.label("Chip Architect", 11, UITheme.FAINT))
 	head.add_child(UITheme.spacer())
-	var close_btn := UITheme.button("ЗАКРЫТЬ  ✕")
+	var close_btn := UITheme.button("ЗАКРЫТЬ  ×")
 	close_btn.pressed.connect(_toggle_help)
 	head.add_child(close_btn)
 	pv.add_child(head)
@@ -425,13 +425,13 @@ func _on_run() -> void:
 
 	_refresh_stats()
 	ide.clear_console()
-	_console_index = 0
+	_console_seq = 0
 	_last_error = ""
 	var ok := runtime.begin(program, stats)
 	_flush_console()
 	_update_run_buttons()
 	if not ok:
-		_switch_tab("output")
+		_switch_tab("program")
 		ide.log_system("Старт не удался: %s" % runtime.error_message, UITheme.ERROR)
 		_set_status("Программа не запустилась — смотрите консоль", "error")
 		return
@@ -454,7 +454,7 @@ func _on_restart() -> void:
 		_on_run()
 		return
 	ide.clear_console()
-	_console_index = 0
+	_console_seq = 0
 	_last_error = ""
 	runtime.restart()
 	_flush_console()
@@ -532,6 +532,8 @@ func layout_screen_deferred() -> void:
 func _toggle_help() -> void:
 	_help_visible = not _help_visible
 	_help_overlay.visible = _help_visible
+	if output != null:
+		output.set_input_blocked(_help_visible)
 	if _help_visible:
 		_help_overlay.move_to_front()
 
@@ -595,11 +597,14 @@ func _flush_console() -> void:
 	if runtime == null or runtime.vm == null or ide == null:
 		return
 	var lines := runtime.vm.console_lines
-	if _console_index > lines.size():
-		_console_index = 0
-	for i in range(_console_index, lines.size()):
+	var total := runtime.vm.console_total
+	if total <= _console_seq:
+		return
+	var new_count := total - _console_seq
+	var start := maxi(0, lines.size() - new_count)
+	for i in range(start, lines.size()):
 		ide.log_line(String(lines[i]), UITheme.TEXT)
-	_console_index = lines.size()
+	_console_seq = total
 
 
 func _process(delta: float) -> void:

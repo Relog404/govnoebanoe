@@ -253,6 +253,24 @@ func _build_field() -> void:
 	head.add_child(zoom_out)
 	head.add_child(zoom_in)
 	head.add_child(fit)
+	var rot_btn := UITheme.button("R")
+	rot_btn.custom_minimum_size = Vector2(40, 24)
+	rot_btn.add_theme_font_size_override("font_size", 9)
+	rot_btn.tooltip_text = "Повернуть выбранный/под курсором компонент на 90°"
+	rot_btn.pressed.connect(func() -> void:
+		if field != null:
+			field.rotate_selected()
+	)
+	var del_btn := UITheme.button("×")
+	del_btn.custom_minimum_size = Vector2(28, 24)
+	del_btn.add_theme_font_size_override("font_size", 10)
+	del_btn.tooltip_text = "Удалить выбранный/под курсором компонент (Del)"
+	del_btn.pressed.connect(func() -> void:
+		if field != null:
+			field.delete_selected()
+	)
+	head.add_child(rot_btn)
+	head.add_child(del_btn)
 	box.add_child(head)
 
 	_field_container = ChipDropArea.new()
@@ -380,7 +398,7 @@ func set_validation(stats: ChipEvaluator.Stats) -> void:
 		return
 	for e in stats.errors:
 		_validation.push_color(UITheme.ERROR)
-		_validation.add_text("✕  " + String(e) + "\n")
+		_validation.add_text("×  " + String(e) + "\n")
 		_validation.pop()
 	for w in stats.warnings:
 		_validation.push_color(UITheme.WARN)

@@ -223,11 +223,13 @@ scripts/
     chip_program.gd         — скомпилированная программа
     chip_vm.gd              — интерпретатор, встроенные функции, песочница
     chipscript_highlighter.gd
-  output/
+  output_screen/
     display_surface.gd      — рендер кадра, «нет сигнала», артефакты, ввод
     key_map.gd              — имена клавиш
   ui/
     main.gd                 — сборка интерфейса, горячие клавиши, save/load
+    palette_button.gd       — карточка палитры с drag&drop
+    chip_drop_area.gd       — приём drag&drop на поле
     chip_view.gd            — палитра + поле + валидация
     ide_panel.gd            — мини-IDE
     output_screen.gd        — экран вывода и захват ввода

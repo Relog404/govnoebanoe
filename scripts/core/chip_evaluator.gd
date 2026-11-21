@@ -245,16 +245,6 @@ static func _check_video(board: ChipBoard, st: Stats, by_id: Dictionary, defs: D
 		if defs[id].category == "output" and defs[id].has_port_kind("video"):
 			outputs.append(id)
 	st.has_output = not outputs.is_empty()
-	for id in by_id:
-		if defs[id].has_port_kind("video") and defs[id].compute > 0.0:
-			var video_linked := false
-			for link in board.links:
-				if int(link["a"]) == id or int(link["b"]) == id:
-					var pi := board.port_info(board.get_component(id), String(link["a_port"] if int(link["a"]) == id else link["b_port"]))
-					if not pi.is_empty() and String(pi["kind"]) == "video":
-						video_linked = true
-			if not video_linked and not st.node_issues.has(id):
-				st.node_issues[id] = "видео-порт не подключён"
 	if not st.has_output:
 		st.add_error("Нет Display Out — экрану некуда подключаться")
 		return
@@ -285,6 +275,10 @@ static func _check_video(board: ChipBoard, st: Stats, by_id: Dictionary, defs: D
 		for id in outputs:
 			if power_factor[id] > 0.0:
 				st.node_issues[id] = "нет видеосигнала"
+		for id in by_id:
+			if defs[id].compute > 0.0 and defs[id].has_port_kind("video"):
+				if not st.node_issues.has(id):
+					st.node_issues[id] = "видео-порт не подключён"
 	if not st.output_connected and st.errors.is_empty():
 		st.add_error("Видео-порт ядра не подключён к Display Out")
 	elif not st.output_connected and not st.errors.is_empty():

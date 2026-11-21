@@ -32,6 +32,7 @@ var _bar_mem: MetricBar
 
 var _stats: ChipEvaluator.Stats = null
 var _hover_area := false
+var input_blocked := false
 var _fullscreen := false
 
 
@@ -218,6 +219,15 @@ func set_quality(scale: float) -> void:
 		_quality_label.text = "рендер %d×%d" % [w, h]
 
 
+func set_input_blocked(value: bool) -> void:
+	## Например, пока открыта справка — клавиши не должны уходить в чип.
+	input_blocked = value
+	if value:
+		_hover_area = false
+		if surface != null:
+			surface.reset_input()
+
+
 func set_fullscreen_state(value: bool) -> void:
 	_fullscreen = value
 	if _fullscreen_btn != null:
@@ -229,7 +239,7 @@ func set_fullscreen_state(value: bool) -> void:
 # ---------------------------------------------------------------------------
 
 func _input(event: InputEvent) -> void:
-	if not is_visible_in_tree() or surface == null:
+	if input_blocked or not is_visible_in_tree() or surface == null:
 		return
 
 	if event is InputEventKey:

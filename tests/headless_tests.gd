@@ -436,6 +436,9 @@ func on_key_down(k) { if k == "W" { keys = keys + 1000 } }
 		out_motion.global_position = tex_center
 		main.output._input(out_motion)
 		_check(main.output._hover_area, "output screen notices the cursor")
+		var virt_mouse: Vector2 = main.output.surface.input_state["mouse"]
+		_check(virt_mouse.distance_to(Vector2(160, 90)) < 2.0,
+			"mouse position maps to the virtual screen center (%.1f, %.1f)" % [virt_mouse.x, virt_mouse.y])
 		var out_key := InputEventKey.new()
 		out_key.keycode = KEY_SPACE
 		out_key.pressed = true

@@ -21,6 +21,7 @@ var globals := {}
 var frames: Array = []
 var draw_commands: Array = []
 var console_lines: Array[String] = []
+var console_total := 0
 
 var error := ""
 var error_line := 0
@@ -60,6 +61,7 @@ func reset() -> void:
 	globals.clear()
 	frames.clear()
 	draw_commands.clear()
+	console_lines.clear()
 	error = ""
 	error_line = 0
 	halted = false
@@ -70,6 +72,7 @@ func reset() -> void:
 	_depth = 0
 	steps = 0
 	tick_index = 0
+	console_total = 0
 	time = 0.0
 	ret_value = null
 	input = {}
@@ -790,6 +793,7 @@ func _call_builtin(name: String, args: Array, line: int):
 
 ## Запись в консоль IDE (с ограничением размера).
 func console(text: String) -> void:
+	console_total += 1
 	var line := text
 	if line.length() > MAX_STRING:
 		line = line.substr(0, MAX_STRING)
