@@ -1,0 +1,32 @@
+[gd_resource type="Resource" script_class="ComponentDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/core/component_def.gd" id="1_def"]
+
+[resource]
+script = ExtResource("1_def")
+
+id = "nand_flash"
+display_name = "NAND Flash"
+description = "Хранилище на 480 ГБ. Ставится за NAND-контроллер, даёт +30 к шине."
+category = "memory"
+color = Color(0.120, 0.240, 0.300, 1)
+size = Vector2i(1, 2)
+power_draw = 7.0
+heat_output = 5.0
+bandwidth = 30.0
+storage = 480.0
+ports = [
+{
+"kind": "power",
+"name": "PWR",
+"offset": 0,
+"side": "N"
+},
+{
+"kind": "bus",
+"name": "BUS",
+"offset": 0,
+"side": "W"
+}
+]
+tags = PackedStringArray("memory", "storage")

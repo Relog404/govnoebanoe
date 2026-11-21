@@ -1,0 +1,38 @@
+[gd_resource type="Resource" script_class="ComponentDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/core/component_def.gd" id="1_def"]
+
+[resource]
+script = ExtResource("1_def")
+
+id = "cpu_core"
+display_name = "CPU Core"
+description = "Универсальное ядро: 80 очков. Можно собрать чип вообще без GPU — только на CPU."
+category = "compute"
+color = Color(0.160, 0.240, 0.360, 1)
+size = Vector2i(2, 2)
+power_draw = 95.0
+heat_output = 70.0
+compute = 80.0
+stability_bonus = 0.01
+ports = [
+{
+"kind": "power",
+"name": "PWR",
+"offset": 0,
+"side": "N"
+},
+{
+"kind": "bus",
+"name": "BUS",
+"offset": 0,
+"side": "E"
+},
+{
+"kind": "video",
+"name": "VID",
+"offset": 1,
+"side": "S"
+}
+]
+tags = PackedStringArray("cpu", "compute", "video")

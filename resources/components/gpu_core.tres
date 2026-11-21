@@ -1,0 +1,37 @@
+[gd_resource type="Resource" script_class="ComponentDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/core/component_def.gd" id="1_def"]
+
+[resource]
+script = ExtResource("1_def")
+
+id = "gpu_core"
+display_name = "GPU Core"
+description = "Главный вычислитель: 150 очков. Требует питание, шину памяти и вывод на экран."
+category = "compute"
+color = Color(0.100, 0.300, 0.220, 1)
+size = Vector2i(3, 3)
+power_draw = 180.0
+heat_output = 150.0
+compute = 150.0
+ports = [
+{
+"kind": "power",
+"name": "PWR",
+"offset": 1,
+"side": "N"
+},
+{
+"kind": "bus",
+"name": "BUS",
+"offset": 1,
+"side": "W"
+},
+{
+"kind": "video",
+"name": "VID",
+"offset": 1,
+"side": "S"
+}
+]
+tags = PackedStringArray("gpu", "compute", "video")

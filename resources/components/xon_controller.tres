@@ -1,0 +1,38 @@
+[gd_resource type="Resource" script_class="ComponentDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/core/component_def.gd" id="1_def"]
+
+[resource]
+script = ExtResource("1_def")
+
+id = "xon_controller"
+display_name = "XON Bridge"
+description = "Вымышленный мост XON: +100 к шине, связывает ядра с памятью и периферией."
+category = "io"
+color = Color(0.200, 0.180, 0.320, 1)
+size = Vector2i(2, 2)
+power_draw = 22.0
+heat_output = 16.0
+bandwidth = 100.0
+stability_bonus = 0.02
+ports = [
+{
+"kind": "power",
+"name": "PWR",
+"offset": 0,
+"side": "N"
+},
+{
+"kind": "bus",
+"name": "BUS",
+"offset": 0,
+"side": "W"
+},
+{
+"kind": "bus",
+"name": "BUS2",
+"offset": 1,
+"side": "E"
+}
+]
+tags = PackedStringArray("io", "bus")

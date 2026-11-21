@@ -1,0 +1,30 @@
+[gd_resource type="Resource" script_class="ComponentDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/core/component_def.gd" id="1_def"]
+
+[resource]
+script = ExtResource("1_def")
+
+id = "display_out"
+display_name = "Display Out"
+description = "Выход на экран. Подключите видео-порт ядра к этому разъёму — иначе на экране будет «нет сигнала»."
+category = "output"
+color = Color(0.340, 0.140, 0.280, 1)
+size = Vector2i(2, 1)
+power_draw = 4.0
+heat_output = 2.0
+ports = [
+{
+"kind": "video",
+"name": "VID",
+"offset": 0,
+"side": "W"
+},
+{
+"kind": "power",
+"name": "PWR",
+"offset": 1,
+"side": "N"
+}
+]
+tags = PackedStringArray("output", "video")

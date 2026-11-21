@@ -1,0 +1,32 @@
+[gd_resource type="Resource" script_class="ComponentDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/core/component_def.gd" id="1_def"]
+
+[resource]
+script = ExtResource("1_def")
+
+id = "psu_connector"
+display_name = "Power In · БП"
+description = "Разъём питания. Отдаёт 520 Вт в сеть. Всё питание чипа начинается здесь."
+category = "power"
+color = Color(0.420, 0.290, 0.120, 1)
+size = Vector2i(2, 2)
+power_supply = 520.0
+heat_output = 4.0
+stability_bonus = 0.01
+is_power_source = true
+ports = [
+{
+"kind": "power",
+"name": "PWR",
+"offset": 1,
+"side": "E"
+},
+{
+"kind": "power",
+"name": "AUX",
+"offset": 1,
+"side": "S"
+}
+]
+tags = PackedStringArray("psu", "power")

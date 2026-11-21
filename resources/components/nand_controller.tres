@@ -1,0 +1,38 @@
+[gd_resource type="Resource" script_class="ComponentDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/core/component_def.gd" id="1_def"]
+
+[resource]
+script = ExtResource("1_def")
+
+id = "nand_controller"
+display_name = "NAND Controller"
+description = "Мост к флеш-памяти: +70 к пропускной способности шины и +0.01 стабильности."
+category = "io"
+color = Color(0.140, 0.260, 0.300, 1)
+size = Vector2i(2, 1)
+power_draw = 14.0
+heat_output = 10.0
+bandwidth = 70.0
+stability_bonus = 0.01
+ports = [
+{
+"kind": "power",
+"name": "PWR",
+"offset": 1,
+"side": "N"
+},
+{
+"kind": "bus",
+"name": "BUS",
+"offset": 0,
+"side": "W"
+},
+{
+"kind": "bus",
+"name": "BUS2",
+"offset": 0,
+"side": "E"
+}
+]
+tags = PackedStringArray("io", "storage")

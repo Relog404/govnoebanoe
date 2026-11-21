@@ -1,0 +1,24 @@
+[gd_resource type="Resource" script_class="ComponentDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/core/component_def.gd" id="1_def"]
+
+[resource]
+script = ExtResource("1_def")
+
+id = "cooler"
+display_name = "Cooler Fan"
+description = "Отводит 160 Вт тепла. Ставьте рядом с горячими ядрами и не забывайте про питание."
+category = "cooling"
+color = Color(0.120, 0.250, 0.320, 1)
+size = Vector2i(2, 2)
+power_draw = 9.0
+cooling = 160.0
+ports = [
+{
+"kind": "power",
+"name": "PWR",
+"offset": 1,
+"side": "S"
+}
+]
+tags = PackedStringArray("cooling")

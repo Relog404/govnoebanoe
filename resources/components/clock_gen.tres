@@ -1,0 +1,25 @@
+[gd_resource type="Resource" script_class="ComponentDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/core/component_def.gd" id="1_def"]
+
+[resource]
+script = ExtResource("1_def")
+
+id = "clock_gen"
+display_name = "Clock Generator"
+description = "Стабильный тактовый генератор: +0.05 стабильности всему чипу."
+category = "support"
+color = Color(0.280, 0.260, 0.140, 1)
+size = Vector2i(1, 1)
+power_draw = 6.0
+heat_output = 5.0
+stability_bonus = 0.05
+ports = [
+{
+"kind": "power",
+"name": "PWR",
+"offset": 0,
+"side": "S"
+}
+]
+tags = PackedStringArray("stability", "clock")

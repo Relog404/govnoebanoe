@@ -1,0 +1,31 @@
+[gd_resource type="Resource" script_class="ComponentDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/core/component_def.gd" id="1_def"]
+
+[resource]
+script = ExtResource("1_def")
+
+id = "vram"
+display_name = "VRAM Module"
+description = "Быстрая память: +120 к пропускной способности шины. Без неё ядра голодают."
+category = "memory"
+color = Color(0.090, 0.260, 0.320, 1)
+size = Vector2i(1, 2)
+power_draw = 24.0
+heat_output = 18.0
+bandwidth = 120.0
+ports = [
+{
+"kind": "power",
+"name": "PWR",
+"offset": 0,
+"side": "N"
+},
+{
+"kind": "bus",
+"name": "BUS",
+"offset": 0,
+"side": "E"
+}
+]
+tags = PackedStringArray("memory")
