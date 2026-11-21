@@ -181,22 +181,36 @@ func _draw_select_marks(body: Rect2) -> void:
 		draw_rect(Rect2(corner - Vector2(2, 2), Vector2(4, 4)), col)
 
 
+func _zoom_factor() -> float:
+	var ct := get_viewport().get_canvas_transform()
+	var z := absf(ct.get_scale().x)
+	return maxf(0.05, z)
+
+
 func _draw_label(body: Rect2, base: Color) -> void:
 	var title_col := Color(0.95, 1.0, 0.98, 0.95)
 	var small := body.size.x < CELL * 1.5 or body.size.y < CELL * 1.2
 	var name := def.display_name
 	if small and name.find(" ") > 0:
 		name = name.split(" ")[0]
-	var font_size := 11 if not small else 9
-	var text_y := body.position.y + 6.0
+	# Текст рисуется в мировых координатах, поэтому размер шрифта
+	# компенсируем зумом — иначе при отдалении подписи исчезают.
+	var zoom := _zoom_factor()
+	var font_size := int(round((11.0 if not small else 9.0) * clampf(1.0 / zoom, 1.0, 2.4)))
+	var avail := maxf(12.0, body.size.x - 10.0)
+	var measured := _font.get_string_size(name, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size).x
+	if measured > avail and measured > 0.0:
+		font_size = maxi(6, int(floor(float(font_size) * avail / measured)))
+	var text_y := body.position.y + 5.0
 	draw_string(_font, Vector2(body.position.x, text_y + font_size), name,
 		HORIZONTAL_ALIGNMENT_CENTER, body.size.x, font_size, title_col)
 
 	if not small:
 		var stat := _short_stats()
 		if stat != "":
+			var stat_size := int(clampf(8.0 * clampf(1.0 / zoom, 1.0, 2.0), 7.0, 18.0))
 			draw_string(_font, Vector2(body.position.x + 6, body.end.y - 6), stat,
-				HORIZONTAL_ALIGNMENT_LEFT, body.size.x - 12, 8, Color(1, 1, 1, 0.55))
+				HORIZONTAL_ALIGNMENT_LEFT, body.size.x - 12, stat_size, Color(1, 1, 1, 0.55))
 	# Цветная полоска категории.
 	draw_rect(Rect2(body.position + Vector2(0, 2), Vector2(body.size.x, 2)),
 		base.lightened(0.55))
@@ -278,5 +292,6 @@ func _draw_port(port: Dictionary, sz: Vector2i) -> void:
 	# Подпись порта только у больших компонентов и при наведении.
 	if hovered and sz.x * sz.y > 1:
 		var label := "%s · %s" % [pname, ComponentDef.kind_name(kind)]
-		draw_string(_font, anchor + Vector2(8, -8), label, HORIZONTAL_ALIGNMENT_LEFT, -1, 9,
-			col.lightened(0.2))
+		var label_size := int(clampf(9.0 / _zoom_factor(), 9.0, 22.0))
+		draw_string(_font, anchor + Vector2(8, -8), label, HORIZONTAL_ALIGNMENT_LEFT, -1,
+			label_size, col.lightened(0.2))
