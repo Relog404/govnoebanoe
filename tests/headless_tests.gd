@@ -255,6 +255,7 @@ func on_key_down(k) { if k == "W" { keys = keys + 1000 } }
 		"demo fps %.1f is in range" % stats.fps_limit)
 	_check(stats.bandwidth_satisfaction >= 0.99, "demo memory bandwidth is enough")
 	_check(stats.stability >= 0.9, "demo stability %.2f" % stats.stability)
+	_check(stats.node_issues.is_empty(), "demo has no per-component issues")
 
 	_section("Evaluator: broken chips")
 	var empty := ChipBoard.new()
@@ -266,6 +267,7 @@ func on_key_down(k) { if k == "W" { keys = keys + 1000 } }
 	var broken_stats := ChipEvaluator.evaluate(broken)
 	_check(not broken_stats.errors.is_empty(), "bare GPU reports errors")
 	_check(not broken_stats.can_output(), "bare GPU has no signal")
+	_check(not broken_stats.node_issues.is_empty(), "broken GPU is marked in the field")
 
 	var serialized := demo.to_dict()
 	var copy := ChipBoard.new()
@@ -329,6 +331,8 @@ func on_key_down(k) { if k == "W" { keys = keys + 1000 } }
 		_check(main.output != null and main.output.surface != null, "output surface built")
 		_check(main.ide != null and main.ide.code_edit != null, "IDE built")
 		_check(main.stats != null, "stats computed")
+		main.chip_view.set_issues(main.stats.node_issues)
+		_check(main.chip_view.field.issues.is_empty(), "field receives component issues")
 
 		main._on_run()
 		await process_frame

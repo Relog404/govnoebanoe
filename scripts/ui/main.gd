@@ -9,6 +9,7 @@ const HELP_TEXT := """[color=#39ff88][b]ЧТО ЭТО[/b][/color]
 
 [color=#39ff88][b]СБОРКА[/b][/color]
 • ЛКМ по палитре — выбрать компонент, ЛКМ по полю — поставить.
+  Карточку из палитры можно просто перетащить на поле.
 • R — повернуть (пока компонент выбран или под курсором).
 • Тяните компонент ЛКМ, чтобы переместить.
 • Клик по цветному порту — начало дорожки, клик по другому порту того же
@@ -24,6 +25,8 @@ const HELP_TEXT := """[color=#39ff88][b]ЧТО ЭТО[/b][/color]
 4. Кулеров хватает на тепло — иначе чип перегревается и глючит.
 Слабый чип выдаёт низкий FPS и низкое разрешение рендера.
 Ошибки не блокируют сборку: можно собрать нерабочий чип и увидеть глюки.
+Компоненты с проблемами помечены красным «!» — наведите мышь, чтобы
+прочитать причину в строке состояния.
 
 [color=#39ff88][b]ПРОГРАММА[/b][/color]
 Вкладка «ПРОГРАММА» — мини-IDE с подсветкой и примерами.
@@ -134,12 +137,12 @@ func _build_ui() -> void:
 
 	var split := HSplitContainer.new()
 	split.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	split.split_offset = -642
 	split.add_theme_constant_override("separation", 8)
 	root.add_child(split)
 
 	chip_view = ChipView.new()
 	chip_view.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	chip_view.size_flags_stretch_ratio = 1.45
 	chip_view.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	split.add_child(chip_view)
 	chip_view.status.connect(_set_status)
@@ -556,6 +559,7 @@ func _refresh_stats() -> void:
 	if stats == null:
 		return
 	chip_view.set_validation(stats)
+	chip_view.set_issues(stats.node_issues)
 	output.set_quality(stats.quality)
 	output.refresh(stats, runtime.get_metrics())
 	runtime.apply_stats(stats)

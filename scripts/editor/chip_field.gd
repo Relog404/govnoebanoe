@@ -26,6 +26,7 @@ var hovered_id := -1
 var hovered_port: Dictionary = {}
 var wire_from: Dictionary = {}
 var drag: Dictionary = {}
+var issues := {}
 var panning := false
 var pan_button := 0
 var mouse_active := false
@@ -92,6 +93,13 @@ func cancel_modes() -> void:
 	drag = {}
 	overlay.queue_redraw()
 	queue_redraw()
+
+
+func set_issues(new_issues: Dictionary) -> void:
+	issues = new_issues
+	for id in _components:
+		var node: ChipComponent = _components[id]
+		node.set_issue(String(issues.get(id, "")))
 
 
 func set_mouse_active(value: bool) -> void:
@@ -202,6 +210,7 @@ func _sync_components() -> void:
 			add_child(node)
 			_components[id] = node
 		node.setup(comp, board.def_of(comp))
+		node.set_issue(String(issues.get(id, "")))
 		node.set_selected(id == selected_id)
 		node.set_hovered(id == hovered_id)
 		if wire_from.is_empty():
@@ -533,6 +542,10 @@ func _update_hover() -> void:
 		comp = _component_at(hover_cell)
 	var new_hover := int(comp.get("id", -1))
 	if new_hover != hovered_id:
+		if new_hover != -1 and issues.has(new_hover):
+			var dd := board.def_of(comp)
+			status.emit("⚠ %s: %s" % [dd.display_name if dd != null else "компонент",
+				String(issues[new_hover])], "error")
 		if hovered_id != -1 and _components.has(hovered_id):
 			_components[hovered_id].set_hovered(false)
 		hovered_id = new_hover

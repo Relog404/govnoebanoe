@@ -42,6 +42,9 @@ class Stats:
 
 	var valid := false
 
+	## Проблемы конкретных компонентов: id -> короткое сообщение.
+	var node_issues := {}
+
 	func add_error(msg: String) -> void:
 		errors.append(msg)
 
@@ -110,6 +113,10 @@ static func evaluate(board: ChipBoard) -> Stats:
 				unpowered_names.append(defs[id].display_name)
 		if not unpowered_names.is_empty():
 			st.add_error("Без питания: %s" % _join_names(unpowered_names))
+	for id in by_id:
+		if defs[id].has_port_kind("power") and power_factor[id] <= 0.0:
+			st.node_issues[id] = "нет питания"
+
 	if st.power_load > 0.001:
 		st.power_ratio = st.power_capacity / st.power_load
 		st.power_satisfaction = clampf(st.power_ratio, 0.0, 1.0)
@@ -149,9 +156,11 @@ static func evaluate(board: ChipBoard) -> Stats:
 			if not d.has_port_kind("bus"):
 				st.add_warning("%s без шины: работает на 15%% мощности" % d.display_name)
 				bus_ratio[id] = 0.15
+				st.node_issues[id] = "нет шины памяти"
 			elif not bus_ratio.has(id):
 				st.add_warning("%s не подключён к шине памяти" % d.display_name)
 				bus_ratio[id] = 0.15
+				st.node_issues[id] = "не подключён к шине"
 			if not d.has_port_kind("power") or power_factor[id] <= 0.0:
 				st.add_warning("%s без питания — не работает" % d.display_name)
 
@@ -190,6 +199,11 @@ static func evaluate(board: ChipBoard) -> Stats:
 		thermal = (st.temp_equilibrium - 90.0) / 60.0
 	st.stability = clampf(BASE_STABILITY + bonus - deficit * 0.35 - starvation * 0.2 - thermal * 0.25,
 		0.3, 1.0)
+	if st.temp_equilibrium > 95.0:
+		for id in by_id:
+			if defs[id].heat_output > 0.0 and power_factor[id] > 0.0:
+				if not st.node_issues.has(id):
+					st.node_issues[id] = "перегрев: мало охлаждения"
 	if st.temp_equilibrium >= MAX_TEMP - 1.0:
 		st.add_warning("Критический перегрев: нужен кулер или крио-плита")
 
@@ -231,6 +245,16 @@ static func _check_video(board: ChipBoard, st: Stats, by_id: Dictionary, defs: D
 		if defs[id].category == "output" and defs[id].has_port_kind("video"):
 			outputs.append(id)
 	st.has_output = not outputs.is_empty()
+	for id in by_id:
+		if defs[id].has_port_kind("video") and defs[id].compute > 0.0:
+			var video_linked := false
+			for link in board.links:
+				if int(link["a"]) == id or int(link["b"]) == id:
+					var pi := board.port_info(board.get_component(id), String(link["a_port"] if int(link["a"]) == id else link["b_port"]))
+					if not pi.is_empty() and String(pi["kind"]) == "video":
+						video_linked = true
+			if not video_linked and not st.node_issues.has(id):
+				st.node_issues[id] = "видео-порт не подключён"
 	if not st.has_output:
 		st.add_error("Нет Display Out — экрану некуда подключаться")
 		return
@@ -257,6 +281,10 @@ static func _check_video(board: ChipBoard, st: Stats, by_id: Dictionary, defs: D
 			else:
 				st.add_error("Display Out без питания")
 
+	if not st.output_connected:
+		for id in outputs:
+			if power_factor[id] > 0.0:
+				st.node_issues[id] = "нет видеосигнала"
 	if not st.output_connected and st.errors.is_empty():
 		st.add_error("Видео-порт ядра не подключён к Display Out")
 	elif not st.output_connected and not st.errors.is_empty():

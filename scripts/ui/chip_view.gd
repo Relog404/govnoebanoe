@@ -47,6 +47,11 @@ func _input(event: InputEvent) -> void:
 		get_viewport().set_input_as_handled()
 
 
+func set_issues(issues: Dictionary) -> void:
+	if field != null:
+		field.set_issues(issues)
+
+
 func attach_board(board: ChipBoard) -> void:
 	if field != null:
 		field.attach_board(board)

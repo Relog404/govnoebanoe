@@ -13,6 +13,7 @@ var is_hovered := false
 var is_dragging := false
 var invalid_drop := false
 var hover_port := ""
+var issue := ""
 
 var _fan_angle := 0.0
 var _fan_accum := 0.0
@@ -84,6 +85,13 @@ func set_hover_port(port_name: String) -> void:
 	queue_redraw()
 
 
+func set_issue(text: String) -> void:
+	if issue == text:
+		return
+	issue = text
+	queue_redraw()
+
+
 func set_dragging(value: bool) -> void:
 	is_dragging = value
 	queue_redraw()
@@ -140,6 +148,14 @@ func _draw() -> void:
 	if invalid_drop:
 		draw_rect(body, Color(1.0, 0.2, 0.25, 0.28))
 		draw_rect(body, Color(1.0, 0.3, 0.35, 0.9), false, 2.0)
+	# Значок проблемы компонента (питание/шина/тепло/видео).
+	if issue != "":
+		draw_rect(body, Color(1.0, 0.25, 0.3, 0.10))
+		var badge := Vector2(full.x - 12.0, 12.0)
+		draw_circle(badge, 8.5, Color(0.08, 0.02, 0.03, 0.85))
+		draw_circle(badge, 7.0, Color(1.0, 0.28, 0.34))
+		draw_string(_font, badge + Vector2(-2.0, 4.0), "!", HORIZONTAL_ALIGNMENT_LEFT, -1, 12,
+			Color(0.1, 0.02, 0.03))
 
 
 func _draw_corner_marks(body: Rect2) -> void:
